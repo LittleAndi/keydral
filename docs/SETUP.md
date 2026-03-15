@@ -144,7 +144,8 @@ Keycloak runs at `http://localhost:8080`. Initial setup:
 ```json
 {
   "Keycloak": {
-    "Authority": "http://localhost:8080/realms/master",
+    "Url": "http://localhost:8080",
+    "Realm": "master",
     "ClientId": "keydral-api",
     "ClientSecret": "YOUR_CLIENT_SECRET_HERE"
   }
@@ -264,7 +265,7 @@ keydral secret set api-key "my-secret-value"
 dotnet test
 
 # Run specific test file
-dotnet test src/Keydral.Encryption.Tests/Keydral.Encryption.Tests.csproj
+dotnet test tests/Keydral.Encryption.Tests/Keydral.Encryption.Tests.csproj
 
 # Run with coverage
 dotnet test /p:CollectCoverage=true
@@ -274,7 +275,7 @@ dotnet test /p:CollectCoverage=true
 
 ```bash
 # Requires API running (from Step 5)
-dotnet test src/Keydral.API.Tests/Keydral.API.Tests.csproj
+dotnet test tests/Keydral.API.Tests/Keydral.API.Tests.csproj
 ```
 
 ---
@@ -293,8 +294,8 @@ Located at `src/Keydral.API/appsettings.Development.json`:
     }
   },
   "Keycloak": {
-    "Authority": "http://localhost:8080/realms/master",
-    "Audience": "keydral-api",
+    "Url": "http://localhost:8080",
+    "Realm": "master",
     "ClientId": "keydral-api",
     "ClientSecret": "YOUR_SECRET"
   },
