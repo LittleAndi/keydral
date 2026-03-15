@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for Keydral API
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS builder
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS builder
 
 WORKDIR /src
 
@@ -24,7 +24,7 @@ RUN dotnet build "Keydral.sln" -c Release --no-restore
 RUN dotnet publish "src/Keydral.API/Keydral.API.csproj" -c Release -o /app/publish --no-build
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 
 WORKDIR /app
 

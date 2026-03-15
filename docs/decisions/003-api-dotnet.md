@@ -1,7 +1,7 @@
 # ADR-003: API Technology Stack (.NET Minimal APIs)
 
-**Date**: 2026-03-15  
-**Status**: ACCEPTED  
+**Date**: 2026-03-15
+**Status**: ACCEPTED
 **Authors**: Keydral MVP Team
 
 ---
@@ -68,7 +68,7 @@ Language/framework options evaluated:
 
 ### API Framework
 
-- **ASP.NET Core 8.0** with **minimal APIs**
+- **ASP.NET Core 10.0** with **minimal APIs**
 - No MVC controllers; endpoint declarations only
 - Clean separation of concerns via extension methods
 
@@ -146,6 +146,6 @@ Keydral.API/
 
 ### Sign-off
 
-- [ ] Architecture: ******\_\_\_******
-- [ ] Operations: ******\_\_\_******
-- [ ] Team Lead: ******\_\_\_******
+- [ ] Architecture: **\*\***\_\_\_**\*\***
+- [ ] Operations: **\*\***\_\_\_**\*\***
+- [ ] Team Lead: **\*\***\_\_\_**\*\***

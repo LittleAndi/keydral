@@ -4,20 +4,136 @@
 
 This guide walks you through setting up Keydral for local development on Windows, macOS, or Linux.
 
-There are two supported approaches:
+There are three supported approaches:
 
-- **[Dev Container](#option-a-dev-container-recommended)** — zero-config, fully isolated environment inside VS Code (recommended)
-- **[Manual setup](#option-b-manual-setup)** — run infrastructure locally via Docker Compose and the API with the .NET SDK
+- **[Aspire Orchestration](#option-a-aspire-orchestration-recommended)** — fully automated service orchestration via .NET Aspire (recommended)
+- **[Dev Container](#option-b-dev-container)** — zero-config, fully isolated environment inside VS Code
+- **[Manual setup](#option-c-manual-setup)** — run infrastructure locally via Docker Compose and the API with the .NET SDK
 
 ---
 
-## Option A: Dev Container (Recommended)
+## Option A: Aspire Orchestration (Recommended)
 
-The dev container spins up the full environment (app, PostgreSQL, Keycloak) automatically using VS Code Dev Containers. No local .NET SDK or PostgreSQL installation needed.
+.NET Aspire automatically orchestrates PostgreSQL, Keycloak, and the Keydral API as managed services, with zero manual configuration. This is the fastest and most integrated way to develop locally.
 
 ### Prerequisites
 
-- **Docker** (v20.0+) - [Download](https://docs.docker.com/get-docker/)
+- **Podman** (v5.0+) with [Podman Desktop](https://podman.io/podman-desktop/) (recommended) — or **Docker** (v20.0+) - [Download](https://docs.docker.com/get-docker/)
+- **.NET SDK 10.0** - [Download](https://dotnet.microsoft.com/download/dotnet/10.0)
+- **Git**
+
+### Steps
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/LittleAndi/keydral.git
+   cd keydral
+   ```
+
+2. Start Aspire orchestration:
+
+   ```bash
+   cd src/Keydral.AppHost
+   dotnet run
+   ```
+
+3. Wait for services to be ready (30-60 seconds):
+   - **Aspire Dashboard** opens automatically at `http://localhost:15000` (service monitoring)
+   - **Keydral API** available at `http://localhost:5001`
+   - **Keycloak admin console** available at `http://localhost:8080/admin`
+
+### What's Included
+
+- PostgreSQL 16 (automatic connection string injection)
+- Keycloak 24 with pre-imported `keydral` realm
+- Keydral API with automatic database migrations
+- .NET 10 SDK
+- Service discovery and health checks (via ServiceDefaults)
+
+### Forwarded Ports
+
+| Port  | Service          |
+| ----- | ---------------- |
+| 5001  | Keydral API      |
+| 5432  | PostgreSQL       |
+| 8080  | Keycloak         |
+| 15000 | Aspire Dashboard |
+
+### Verify Setup
+
+```bash
+# Check API health
+curl http://localhost:5001/health
+# Response: {"status":"healthy",...}
+
+# Keycloak admin console (default: admin / admin)
+open http://localhost:8080/admin
+
+# Aspire telemetry dashboard
+open http://localhost:15000
+```
+
+### Access Swagger UI
+
+1. Navigate to: `http://localhost:5001/swagger`
+2. Click **Authorize** button
+3. Use Keycloak credentials (from Step 4 below) to get access token
+4. Try API endpoints from the UI
+
+### Configure Keycloak (if needed)
+
+The `keydral` realm is automatically imported with pre-configured:
+
+- **Clients**: `keydral-api` (bearer-only), `keydral-cli` (device flow)
+- **Roles**: `secret-reader`, `secret-writer`, `secret-admin`
+- **Users**: Use the admin console to create test users
+
+If you need to customize the realm, edit [src/Keydral.AppHost/realm/keydral-realm.json](../src/Keydral.AppHost/realm/keydral-realm.json) and restart Aspire.
+
+### Stop Services
+
+```bash
+# Press Ctrl+C in the terminal running 'dotnet run'
+# All containers automatically clean up
+```
+
+### Troubleshooting Aspire
+
+**Services fail to start:**
+
+```bash
+# Check Docker is running
+docker ps
+
+# Restart Aspire
+# Press Ctrl+C, then run 'dotnet run' again
+```
+
+**Port conflicts:**
+
+```bash
+# If port 5001 (API) is already in use, change it:
+# Edit src/Keydral.API/Properties/launchSettings.json
+# Change applicationUrl port from 5001 to another (e.g., 5002)
+```
+
+**Keycloak not responding:**
+
+```bash
+# Keycloak takes 30-60 seconds to start. Check Aspire Dashboard at http://localhost:15000
+# Wait for Keycloak health to show "Healthy"
+```
+
+---
+
+## Option B: Dev Container
+
+An alternative lightweight option: the dev container spins up the full environment (app, PostgreSQL, Keycloak) automatically using VS Code Dev Containers. No local .NET SDK or PostgreSQL installation needed on your host machine.
+
+### Prerequisites
+
+- **Podman** (v5.0+) with [Podman Desktop](https://podman.io/podman-desktop/) (recommended) — or **Docker** (v20.0+) - [Download](https://docs.docker.com/get-docker/)
 - **VS Code** with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 - **Git**
 
@@ -50,7 +166,7 @@ The dev container spins up the full environment (app, PostgreSQL, Keycloak) auto
 
 ### What's Included
 
-- .NET 8 SDK
+- .NET 10 SDK
 - C# and C# Dev Kit VS Code extensions pre-installed
 - PostgreSQL 16 and Keycloak 24 as service containers
 - Environment variables pre-configured to connect API → PostgreSQL and Keycloak
@@ -76,12 +192,15 @@ Continue from [Step 4: Configure Keycloak](#step-4-configure-keycloak) to finish
 
 ---
 
-## Option B: Manual Setup
+## Option C: Manual Setup
+
+For maximum control: run container infrastructure locally via Docker Compose (or Podman Compose) and the API using the .NET SDK directly. This approach gives you explicit control over each component.
 
 ### Prerequisites
 
-- **Docker** (v20.0+) - For running PostgreSQL and Keycloak
-- **.NET SDK 8.0** - [Download](https://dotnet.microsoft.com/download/dotnet/8.0)
+- **Podman** (v5.0+) with `podman-compose` (recommended) — or **Docker** (v20.0+) - [Download](https://docs.docker.com/get-docker/)
+  - For Podman: `podman run -it --rm --volume /run/podman/podman.sock:/run/podman/podman.sock ghcr.io/containers/podman-compose`
+- **.NET SDK 10.0** - [Download](https://dotnet.microsoft.com/download/dotnet/10.0)
 - **Node.js 18+** (optional) - For frontend development
 - **Git** - For cloning the repository
 - **Command-line tools**: `curl`, `jq` (for API testing)
@@ -89,13 +208,14 @@ Continue from [Step 4: Configure Keycloak](#step-4-configure-keycloak) to finish
 ### Verify Installation
 
 ```bash
-# Check Docker
-docker --version
-# Docker version 20.10.x or later
+# Check Podman (or Docker)
+podman --version
+# Podman version 5.0.x or later
+# (or 'docker --version' for Docker 20.10.x or later)
 
 # Check .NET
 dotnet --version
-# 8.0.x or later
+# 10.0.x or later
 
 # Check Git
 git --version
@@ -121,10 +241,15 @@ Keydral requires PostgreSQL and Keycloak running via Docker Compose.
 
 ```bash
 # From the keydral root directory
-docker-compose up -d
+# Using Podman (recommended):
+podman-compose up -d
+
+# Or using Docker:
+# docker-compose up -d
 
 # Verify services are running
-docker-compose ps
+podman-compose ps
+# (or 'docker-compose ps' if using Docker)
 ```
 
 You should see:
@@ -138,14 +263,16 @@ Services take 30-60 seconds to start:
 
 ```bash
 # Watch logs (Ctrl+C to exit)
-docker-compose logs -f
+podman-compose logs -f
+# (or 'docker-compose logs -f' if using Docker)
 
 # Check Keycloak readiness
 curl -s http://localhost:8080/health | jq '.status'
 # Should return: "UP"
 
 # Check PostgreSQL readiness
-docker-compose exec postgres pg_isready -U keydral_user -d keydral_dev
+podman-compose exec postgres pg_isready -U keydral_user -d keydral_dev
+# (or 'docker-compose exec postgres ...' if using Docker)
 # Should return: "accepting connections"
 ```
 
@@ -303,10 +430,10 @@ cd src/Keydral.CLI
 dotnet build -c Release
 
 # On Windows:
-# CLI executable: bin/Release/net8.0/Keydral.CLI.exe
+# CLI executable: bin/Release/net10.0/Keydral.CLI.exe
 
 # On MacOS/Linux:
-# CLI executable: bin/Release/net8.0/Keydral.CLI
+# CLI executable: bin/Release/net10.0/Keydral.CLI
 ```
 
 ### Test CLI
@@ -421,26 +548,31 @@ export KEYDRAL_MASTERKEY_PATH=/path/to/masterkey.txt
 
 ```bash
 # Check if container is running
-docker-compose ps
+podman-compose ps
+# (or 'docker-compose ps' if using Docker)
 
 # Restart PostgreSQL
-docker-compose restart postgres
+podman-compose restart postgres
+# (or 'docker-compose restart postgres' if using Docker)
 
 # Check logs
-docker-compose logs postgres
+podman-compose logs postgres
+# (or 'docker-compose logs postgres' if using Docker)
 ```
 
 > **Dev Container**: The `postgres` service is a sidecar container. Verify it is healthy with
-> `docker inspect keydral-devcontainer-postgres-1 | grep Status`.
+> `podman inspect keydral-devcontainer-postgres-1 | grep Status` (or `docker inspect` if using Docker).
 
 ### Issue: Keycloak not responding
 
 ```bash
 # Check if container is running
-docker-compose ps keycloak
+podman-compose ps keycloak
+# (or 'docker-compose ps keycloak' if using Docker)
 
 # Restart Keycloak
-docker-compose restart keycloak
+podman-compose restart keycloak
+# (or 'docker-compose restart keycloak' if using Docker)
 
 # Wait 30+ seconds for startup
 ```
@@ -455,7 +587,8 @@ docker-compose restart keycloak
 # Command palette → Dev Containers: Rebuild Container
 
 # Or from the terminal
-docker-compose -f .devcontainer/docker-compose.devcontainer.yml down -v
+podman-compose -f .devcontainer/podman-compose.devcontainer.yml down -v
+# (or 'docker-compose -f .devcontainer/docker-compose.devcontainer.yml down -v' if using Docker)
 # Then reopen in container
 ```
 

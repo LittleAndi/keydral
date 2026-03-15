@@ -69,15 +69,18 @@ Keydral is designed as a lightweight, cloud-native trust service:
 
 ## �️ Getting Started
 
-The fastest way to start developing is with the included **Dev Container**:
+The fastest way to start developing Keydral is with .NET Aspire, which orchestrates the entire stack (API, PostgreSQL, Keycloak) automatically:
 
-1. Install [Docker](https://docs.docker.com/get-docker/) and the VS Code [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
-2. Clone the repo and open it in VS Code.
-3. When prompted, click **Reopen in Container** (or run **Dev Containers: Reopen in Container** from the command palette).
+1. Install [Podman](https://podman.io/docs/installation) (or [Docker](https://docs.docker.com/get-docker/)) and [.NET SDK 10.0](https://dotnet.microsoft.com/download/dotnet/10.0).
+   - **Recommended**: [Podman Desktop](https://podman.io/podman-desktop/) for a seamless GUI experience.
+2. Clone the repo and start Aspire:
+   ```bash
+   git clone https://github.com/LittleAndi/keydral.git && cd keydral
+   cd src/Keydral.AppHost && dotnet run
+   ```
+3. Open `http://localhost:5001/swagger` (API) or `http://localhost:8080/admin` (Keycloak admin).
 
-The container brings up PostgreSQL, Keycloak, and a .NET 8 environment automatically.
-
-For full setup instructions (including the manual Docker Compose approach), see [docs/SETUP.md](docs/SETUP.md).
+For alternative setup options (Dev Container, manual Docker Compose), see [docs/SETUP.md](docs/SETUP.md).
 
 ---
 
