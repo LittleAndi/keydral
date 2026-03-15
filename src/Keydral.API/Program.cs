@@ -1,13 +1,28 @@
+using Keydral.API.Authentication;
+using Keydral.API.Middleware;
+using Keydral.Core.Extensions;
+using Keydral.Storage;
+using Keydral.Encryption.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// Add services to the container
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Add database context
+builder.Services.AddScoped<ApplicationDbContext>();
+
+// Add encryption layer
+builder.Services.AddEncryption(builder.Configuration);
+
+// Add authentication and authorization
+builder.Services.AddKeycloakAuthentication(builder.Configuration);
+builder.Services.AddAuthenticationAndAuthorization();
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -16,29 +31,20 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// Authentication and authorization middleware
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseUserContext();
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+// Health check endpoint (no auth required)
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
+    .AllowAnonymous()
+    .WithName("Health")
+    .WithOpenApi();
+
+// TODO: Add secret endpoints (list, get, create, update, delete)
+// TODO: Add policy endpoints (list, get, create, update, delete)
+// TODO: Add audit log endpoints (list)
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
