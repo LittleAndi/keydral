@@ -131,6 +131,34 @@ public class AuditLogRepository : Repository<AuditLog>, IAuditLogRepository
     }
 
     /// <summary>
+    /// Get filtered and paginated audit logs.
+    /// </summary>
+    public async Task<(IEnumerable<AuditLog> logs, int totalCount)> GetAuditLogsFilteredAsync(
+        string? actor, string? action, string? resourceId, string? result,
+        int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var query = Context.AuditLogs.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(actor))
+            query = query.Where(a => a.Actor.Contains(actor));
+        if (!string.IsNullOrWhiteSpace(action))
+            query = query.Where(a => a.Action == action);
+        if (!string.IsNullOrWhiteSpace(resourceId))
+            query = query.Where(a => a.ResourceId == resourceId);
+        if (!string.IsNullOrWhiteSpace(result))
+            query = query.Where(a => a.Result == result);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var logs = await query
+            .OrderByDescending(a => a.Timestamp)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (logs, totalCount);
+    }
+
+    /// <summary>
     /// Add an audit log entry.
     /// </summary>
     public async Task<AuditLog> AddAuditLogAsync(AuditLog log, CancellationToken cancellationToken = default)

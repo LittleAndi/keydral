@@ -48,14 +48,16 @@ public static class PolicyEndpoints
     /// <summary>
     /// List all policies (requires admin role).
     /// </summary>
-    private static async Task<Ok<List<PolicyResponse>>> ListPolicies(
+    private static async Task<Results<Ok<List<PolicyResponse>>, ForbidHttpResult, UnauthorizedHttpResult>> ListPolicies(
         HttpContext context,
         IPolicyRepository policyRepository,
         ILogger<Program> logger)
     {
         var userContext = context.GetUserContext();
-        if (userContext == null || !userContext.HasRole("secret-admin"))
-            return TypedResults.Ok(new List<PolicyResponse>());
+        if (userContext == null)
+            return TypedResults.Unauthorized();
+        if (!userContext.HasRole("secret-admin"))
+            return TypedResults.Forbid();
 
         try
         {
@@ -73,15 +75,17 @@ public static class PolicyEndpoints
     /// <summary>
     /// Get a specific policy by ID.
     /// </summary>
-    private static async Task<Results<Ok<PolicyResponse>, NotFound>> GetPolicy(
+    private static async Task<Results<Ok<PolicyResponse>, NotFound, ForbidHttpResult, UnauthorizedHttpResult>> GetPolicy(
         Guid id,
         HttpContext context,
         IPolicyRepository policyRepository,
         ILogger<Program> logger)
     {
         var userContext = context.GetUserContext();
-        if (userContext == null || !userContext.HasRole("secret-admin"))
-            return TypedResults.NotFound();
+        if (userContext == null)
+            return TypedResults.Unauthorized();
+        if (!userContext.HasRole("secret-admin"))
+            return TypedResults.Forbid();
 
         try
         {
@@ -101,15 +105,17 @@ public static class PolicyEndpoints
     /// <summary>
     /// Create a new policy (requires admin role).
     /// </summary>
-    private static async Task<Results<Created<PolicyResponse>, BadRequest<string>>> CreatePolicy(
+    private static async Task<Results<Created<PolicyResponse>, BadRequest<string>, ForbidHttpResult, UnauthorizedHttpResult>> CreatePolicy(
         CreateUpdatePolicyRequest request,
         HttpContext context,
         IPolicyRepository policyRepository,
         ILogger<Program> logger)
     {
         var userContext = context.GetUserContext();
-        if (userContext == null || !userContext.HasRole("secret-admin"))
-            return TypedResults.BadRequest("Access denied - admin role required");
+        if (userContext == null)
+            return TypedResults.Unauthorized();
+        if (!userContext.HasRole("secret-admin"))
+            return TypedResults.Forbid();
 
         try
         {
@@ -139,7 +145,6 @@ public static class PolicyEndpoints
             };
 
             await policyRepository.AddAsync(policy);
-            await policyRepository.SaveChangesAsync();
 
             return TypedResults.Created($"/api/policies/{policy.Id}", MapToDto(policy));
         }
@@ -153,7 +158,7 @@ public static class PolicyEndpoints
     /// <summary>
     /// Update an existing policy (requires admin role).
     /// </summary>
-    private static async Task<Results<Ok<PolicyResponse>, NotFound, BadRequest<string>>> UpdatePolicy(
+    private static async Task<Results<Ok<PolicyResponse>, NotFound, BadRequest<string>, ForbidHttpResult, UnauthorizedHttpResult>> UpdatePolicy(
         Guid id,
         CreateUpdatePolicyRequest request,
         HttpContext context,
@@ -161,8 +166,10 @@ public static class PolicyEndpoints
         ILogger<Program> logger)
     {
         var userContext = context.GetUserContext();
-        if (userContext == null || !userContext.HasRole("secret-admin"))
-            return TypedResults.BadRequest("Access denied - admin role required");
+        if (userContext == null)
+            return TypedResults.Unauthorized();
+        if (!userContext.HasRole("secret-admin"))
+            return TypedResults.Forbid();
 
         try
         {
@@ -181,7 +188,6 @@ public static class PolicyEndpoints
             policy.UpdatedAt = DateTime.UtcNow;
 
             await policyRepository.UpdateAsync(policy);
-            await policyRepository.SaveChangesAsync();
 
             return TypedResults.Ok(MapToDto(policy));
         }
@@ -195,15 +201,17 @@ public static class PolicyEndpoints
     /// <summary>
     /// Delete a policy (soft delete, requires admin role).
     /// </summary>
-    private static async Task<Results<NoContent, NotFound>> DeletePolicy(
+    private static async Task<Results<NoContent, NotFound, ForbidHttpResult, UnauthorizedHttpResult>> DeletePolicy(
         Guid id,
         HttpContext context,
         IPolicyRepository policyRepository,
         ILogger<Program> logger)
     {
         var userContext = context.GetUserContext();
-        if (userContext == null || !userContext.HasRole("secret-admin"))
-            return TypedResults.NotFound();
+        if (userContext == null)
+            return TypedResults.Unauthorized();
+        if (!userContext.HasRole("secret-admin"))
+            return TypedResults.Forbid();
 
         try
         {
@@ -216,7 +224,6 @@ public static class PolicyEndpoints
             policy.UpdatedAt = DateTime.UtcNow;
 
             await policyRepository.UpdateAsync(policy);
-            await policyRepository.SaveChangesAsync();
 
             return TypedResults.NoContent();
         }

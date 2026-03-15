@@ -180,7 +180,7 @@ public class ApplicationDbContext : DbContext
             Permissions = "secrets:read,audit:read",
             IsSystemRole = true,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = new DateTime(2026, 3, 15, 0, 0, 0, DateTimeKind.Utc),
             CreatedBy = "system"
         };
 
@@ -192,7 +192,7 @@ public class ApplicationDbContext : DbContext
             Permissions = "secrets:read,secrets:write,secrets:delete,audit:read",
             IsSystemRole = true,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = new DateTime(2026, 3, 15, 0, 0, 0, DateTimeKind.Utc),
             CreatedBy = "system"
         };
 
@@ -204,7 +204,7 @@ public class ApplicationDbContext : DbContext
             Permissions = "secrets:*,policies:*,users:*,roles:*,audit:*,encryption:*",
             IsSystemRole = true,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = new DateTime(2026, 3, 15, 0, 0, 0, DateTimeKind.Utc),
             CreatedBy = "system"
         };
 

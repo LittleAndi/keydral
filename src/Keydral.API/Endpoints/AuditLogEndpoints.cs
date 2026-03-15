@@ -32,7 +32,7 @@ public static class AuditLogEndpoints
     /// <summary>
     /// List audit log entries with optional filtering and pagination.
     /// </summary>
-    private static async Task<Ok<PaginatedResponse<AuditLogResponse>>> ListAuditLogs(
+    private static async Task<Results<Ok<PaginatedResponse<AuditLogResponse>>, ForbidHttpResult, UnauthorizedHttpResult>> ListAuditLogs(
         HttpContext context,
         IAuditLogRepository auditLogRepository,
         [FromQuery] string? actor = null,
@@ -45,45 +45,18 @@ public static class AuditLogEndpoints
     {
         var userContext = context.GetUserContext();
         if (userContext == null)
-            return TypedResults.Ok(new PaginatedResponse<AuditLogResponse>());
+            return TypedResults.Unauthorized();
+        if (!userContext.HasRole("secret-admin"))
+            return TypedResults.Forbid();
 
         try
         {
-            // Only admins can see full audit logs
-            // Regular users can only see logs for resources they have access to
-            bool isAdmin = userContext.HasRole("secret-admin");
-
-            // Fetch audit logs based on filters
-            var auditLogs = await auditLogRepository.GetAllAsync();
-
-            // Apply filters
-            if (!string.IsNullOrWhiteSpace(actor))
-                auditLogs = auditLogs.Where(a => a.Actor.Contains(actor));
-
-            if (!string.IsNullOrWhiteSpace(action))
-                auditLogs = auditLogs.Where(a => a.Action == action);
-
-            if (!string.IsNullOrWhiteSpace(resourceId))
-                auditLogs = auditLogs.Where(a => a.ResourceId == resourceId);
-
-            if (!string.IsNullOrWhiteSpace(result))
-                auditLogs = auditLogs.Where(a => a.Result == result);
-
-            // Sort by timestamp descending
-            var sortedLogs = auditLogs
-                .OrderByDescending(a => a.Timestamp)
-                .ToList();
-
-            // Pagination
-            var totalCount = sortedLogs.Count;
-            var paginatedLogs = sortedLogs
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
+            var (logs, totalCount) = await auditLogRepository.GetAuditLogsFilteredAsync(
+                actor, action, resourceId, result, pageNumber, pageSize);
 
             var response = new PaginatedResponse<AuditLogResponse>
             {
-                Items = paginatedLogs.Select(MapToDto).ToList(),
+                Items = logs.Select(MapToDto).ToList(),
                 PageNumber = pageNumber,
                 PageSize = pageSize,
                 TotalCount = totalCount
@@ -101,7 +74,7 @@ public static class AuditLogEndpoints
     /// <summary>
     /// Get a specific audit log entry by ID.
     /// </summary>
-    private static async Task<Results<Ok<AuditLogResponse>, NotFound>> GetAuditLog(
+    private static async Task<Results<Ok<AuditLogResponse>, NotFound, ForbidHttpResult, UnauthorizedHttpResult>> GetAuditLog(
         Guid id,
         HttpContext context,
         IAuditLogRepository auditLogRepository,
@@ -109,7 +82,9 @@ public static class AuditLogEndpoints
     {
         var userContext = context.GetUserContext();
         if (userContext == null)
-            return TypedResults.NotFound();
+            return TypedResults.Unauthorized();
+        if (!userContext.HasRole("secret-admin"))
+            return TypedResults.Forbid();
 
         try
         {

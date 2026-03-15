@@ -100,16 +100,24 @@ public class PolicyRepository : Repository<Policy>, IPolicyRepository
     {
         var applicablePolicies = await GetApplicablePoliciesAsync(principal, resource, cancellationToken);
 
+        static bool ActionMatches(string policyActions, string act)
+        {
+            var tokens = policyActions.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return tokens.Any(a =>
+                a.Equals(act, StringComparison.OrdinalIgnoreCase) ||
+                (a.EndsWith('*') && act.StartsWith(a[..^1], StringComparison.OrdinalIgnoreCase)));
+        }
+
         // Check for explicit Deny first (deny takes precedence)
         var denyPolicy = applicablePolicies.FirstOrDefault(p =>
-            p.Effect == "Deny" && p.Actions!.Contains(action));
+            p.Effect == "Deny" && ActionMatches(p.Actions!, action));
 
         if (denyPolicy != null)
             return false;
 
         // Then check for Allow
         var allowPolicy = applicablePolicies.FirstOrDefault(p =>
-            p.Effect == "Allow" && p.Actions!.Contains(action));
+            p.Effect == "Allow" && ActionMatches(p.Actions!, action));
 
         return allowPolicy != null;
     }

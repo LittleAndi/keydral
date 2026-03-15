@@ -48,20 +48,17 @@ public class SecretRepository : Repository<Secret>, ISecretRepository
         }
 
         // Simple glob pattern matching
-        var regexPattern = pattern
-            .Replace(".", @"\.")
-            .Replace("**", ".*")
-            .Replace("*", "[^/]*");
+        var regexPattern = System.Text.RegularExpressions.Regex.Escape(pattern)
+            .Replace(@"\*\*", ".*")
+            .Replace(@"\*", "[^/]*");
 
         var regex = new System.Text.RegularExpressions.Regex($"^{regexPattern}$");
 
-        return await Context.Secrets
+        var all = await Context.Secrets
             .Where(s => !s.IsDeleted)
-            .ToListAsync(cancellationToken)
-            .ContinueWith(task =>
-            {
-                return task.Result.Where(s => regex.IsMatch(s.Name)).ToList() as IEnumerable<Secret>;
-            }, cancellationToken);
+            .ToListAsync(cancellationToken);
+
+        return all.Where(s => regex.IsMatch(s.Name));
     }
 
     /// <summary>

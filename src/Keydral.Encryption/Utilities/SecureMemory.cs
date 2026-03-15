@@ -12,28 +12,15 @@ public static class SecureMemory
     /// Securely zeros out a byte array to prevent data leakage.
     /// </summary>
     /// <remarks>
-    /// Uses Array.Clear with proper pinning to prevent compiler optimizations
-    /// that might skip the clearing operation.
+    /// Uses <see cref="System.Security.Cryptography.CryptographicOperations.ZeroMemory"/>
+    /// which is guaranteed not to be elided by the JIT compiler.
     /// </remarks>
     public static void ZeroBytes(byte[] data)
     {
         if (data == null || data.Length == 0)
             return;
 
-        // Use pinned array to prevent garbage collection during wiping
-        var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
-        try
-        {
-            // Clear the array multiple times to be extra safe
-            Array.Clear(data, 0, data.Length);
-
-            // Optional: overwrite with random data first (more secure, slower)
-            // This makes it harder for forensic recovery
-        }
-        finally
-        {
-            handle.Free();
-        }
+        System.Security.Cryptography.CryptographicOperations.ZeroMemory(data);
     }
 
     /// <summary>
@@ -44,15 +31,8 @@ public static class SecureMemory
         if (data == null || data.Length == 0)
             return;
 
-        var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
-        try
-        {
-            Array.Clear(data, 0, data.Length);
-        }
-        finally
-        {
-            handle.Free();
-        }
+        System.Security.Cryptography.CryptographicOperations.ZeroMemory(
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(data.AsSpan()));
     }
 
     /// <summary>
@@ -64,22 +44,14 @@ public static class SecureMemory
         if (data == null || data.Length == 0)
             return;
 
-        var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
-        try
+        // First pass: write random data
+        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
         {
-            // First pass: write random data
-            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(data);
-            }
+            rng.GetBytes(data);
+        }
 
-            // Second pass: write zeros
-            Array.Clear(data, 0, data.Length);
-        }
-        finally
-        {
-            handle.Free();
-        }
+        // Second pass: write zeros
+        System.Security.Cryptography.CryptographicOperations.ZeroMemory(data);
     }
 
     /// <summary>

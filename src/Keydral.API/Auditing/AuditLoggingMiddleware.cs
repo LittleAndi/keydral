@@ -107,6 +107,7 @@ public class AuditLoggingMiddleware
         finally
         {
             // Copy response back to original stream
+            responseStream.Position = 0;
             await responseStream.CopyToAsync(originalBodyStream);
             context.Response.Body = originalBodyStream;
 

@@ -43,6 +43,13 @@ public interface IAuditLogRepository : IRepository<AuditLog>
     Task<IEnumerable<AuditLog>> GetRecentAuditLogsAsync(int count = 100, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get filtered and paginated audit logs.
+    /// </summary>
+    Task<(IEnumerable<AuditLog> logs, int totalCount)> GetAuditLogsFilteredAsync(
+        string? actor, string? action, string? resourceId, string? result,
+        int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Add an audit log entry.
     /// </summary>
     Task<AuditLog> AddAuditLogAsync(AuditLog log, CancellationToken cancellationToken = default);

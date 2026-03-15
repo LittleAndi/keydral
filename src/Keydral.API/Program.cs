@@ -6,6 +6,7 @@ using Keydral.Core.Extensions;
 using Keydral.Storage;
 using Keydral.Storage.Repositories;
 using Keydral.Encryption.Extensions;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 
 // Ensure ASPNETCORE_ENVIRONMENT is visible early (important for test hosts)
@@ -30,7 +31,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Add database context and repositories
-builder.Services.AddScoped<ApplicationDbContext>();
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(builder.Configuration["Database:ConnectionString"]));
 builder.Services.AddScoped<ISecretRepository, SecretRepository>();
 builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
