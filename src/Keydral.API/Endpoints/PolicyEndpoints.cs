@@ -21,27 +21,22 @@ public static class PolicyEndpoints
 
         group.MapGet("/", ListPolicies)
             .WithName("ListPolicies")
-            .WithOpenApi()
             .WithDescription("List all RBAC policies");
 
         group.MapGet("/{id}", GetPolicy)
             .WithName("GetPolicy")
-            .WithOpenApi()
             .WithDescription("Get a specific policy by ID");
 
         group.MapPost("/", CreatePolicy)
             .WithName("CreatePolicy")
-            .WithOpenApi()
             .WithDescription("Create a new RBAC policy");
 
         group.MapPut("/{id}", UpdatePolicy)
             .WithName("UpdatePolicy")
-            .WithOpenApi()
             .WithDescription("Update an existing policy");
 
         group.MapDelete("/{id}", DeletePolicy)
             .WithName("DeletePolicy")
-            .WithOpenApi()
             .WithDescription("Delete a policy (soft delete)");
     }
 

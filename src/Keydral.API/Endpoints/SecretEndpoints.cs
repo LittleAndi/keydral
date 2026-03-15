@@ -23,37 +23,30 @@ public static class SecretEndpoints
 
         group.MapGet("/", ListSecrets)
             .WithName("ListSecrets")
-            .WithOpenApi()
             .WithDescription("List all secrets (without values)");
 
         group.MapGet("/{name}", GetSecret)
             .WithName("GetSecret")
-            .WithOpenApi()
             .WithDescription("Get a specific secret by name");
 
         group.MapPost("/", CreateSecret)
             .WithName("CreateSecret")
-            .WithOpenApi()
             .WithDescription("Create a new secret");
 
         group.MapPut("/{name}", UpdateSecret)
             .WithName("UpdateSecret")
-            .WithOpenApi()
             .WithDescription("Update an existing secret");
 
         group.MapDelete("/{name}", DeleteSecret)
             .WithName("DeleteSecret")
-            .WithOpenApi()
             .WithDescription("Delete a secret (soft delete)");
 
         group.MapGet("/{name}/versions", GetSecretVersions)
             .WithName("GetSecretVersions")
-            .WithOpenApi()
             .WithDescription("Get version history for a secret");
 
         group.MapPost("/{name}/restore/{version}", RestoreSecretVersion)
             .WithName("RestoreSecretVersion")
-            .WithOpenApi()
             .WithDescription("Restore a secret to a previous version");
     }
 

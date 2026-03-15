@@ -20,12 +20,10 @@ public static class AuditLogEndpoints
 
         group.MapGet("/", ListAuditLogs)
             .WithName("ListAuditLogs")
-            .WithOpenApi()
             .WithDescription("List audit log entries with optional filtering");
 
         group.MapGet("/{id}", GetAuditLog)
             .WithName("GetAuditLog")
-            .WithOpenApi()
             .WithDescription("Get a specific audit log entry by ID");
     }
 
