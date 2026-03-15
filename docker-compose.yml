@@ -1,0 +1,77 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: keydral-postgres
+    environment:
+      POSTGRES_USER: keydral
+      POSTGRES_PASSWORD: keydral_dev_password
+      POSTGRES_DB: keydral
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keydral"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - keydral-network
+
+  keycloak:
+    image: keycloak/keycloak:24.0
+    container_name: keydral-keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keydral
+      KC_DB_PASSWORD: keydral_dev_password
+      KC_PROXY: edge
+      KC_HOSTNAME_URL: http://localhost:8080
+      KC_HOSTNAME_ADMIN_URL: http://localhost:8080
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: start-dev
+    networks:
+      - keydral-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # Uncomment when API is ready to run in container
+  # keydral-api:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: keydral-api
+  #   environment:
+  #     Database__ConnectionString: Server=postgres;Port=5432;Database=keydral;User Id=keydral;Password=keydral_dev_password;
+  #     Keycloak__Url: http://keycloak:8080
+  #     Keycloak__Realm: keydral
+  #     Keycloak__ClientId: keydral-api
+  #     Keycloak__ClientSecret: ${KEYCLOAK_CLIENT_SECRET}
+  #   ports:
+  #     - "5000:5000"
+  #   depends_on:
+  #     - postgres
+  #     - keycloak
+  #   networks:
+  #     - keydral-network
+
+volumes:
+  postgres_data:
+
+networks:
+  keydral-network:
+    driver: bridge
