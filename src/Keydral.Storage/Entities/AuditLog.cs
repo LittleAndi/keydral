@@ -38,6 +38,11 @@ public class AuditLog
     public string Actor { get; set; } = string.Empty;
 
     /// <summary>
+    /// User ID (Guid from JWT claims).
+    /// </summary>
+    public Guid? UserId { get; set; }
+
+    /// <summary>
     /// IP address or origin of the request.
     /// </summary>
     public string? SourceIp { get; set; }
@@ -71,6 +76,11 @@ public class AuditLog
     /// Timestamp when the action occurred.
     /// </summary>
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Request processing duration in milliseconds.
+    /// </summary>
+    public long? DurationMs { get; set; }
 
     /// <summary>
     /// Request ID for correlation/tracing.
