@@ -1,16 +1,31 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <ItemGroup>
-    <ProjectReference Include="..\Keydral.Core\Keydral.Core.csproj" />
-    <ProjectReference Include="..\Keydral.Storage\Keydral.Storage.csproj" />
-    <ProjectReference Include="..\Keydral.API\Keydral.API.csproj" />
-  </ItemGroup>
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Command-line parsing and utilities -->
+    <PackageReference Include="Spectre.Console" Version="0.48.0" />
+
+    <!-- HTTP client for API calls -->
+    <PackageReference Include="System.Net.Http.Json" Version="8.0.0" />
+
+    <!-- JSON serialization -->
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+
+    <!-- JWT token handling -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.6.0" />
+
+    <!-- OAuth 2.0 device flow -->
+    <PackageReference Include="IdentityModel" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Keydral.Core\Keydral.Core.csproj" />
+  </ItemGroup>
 
 </Project>
