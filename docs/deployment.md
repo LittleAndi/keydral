@@ -2,26 +2,19 @@
 
 ## MVP Deployment Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-│          Local Development (Docker Compose)         │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  ┌────────────────┐  ┌──────────────────────────┐  │
-│  │   Keydral API  │  │    Keycloak (OIDC)       │  │
-│  │   (dotnet run) │◄──┤  Port: 8080              │  │
-│  │   Port: 5000   │  │  Admin: admin/admin      │  │
-│  └────────────────┘  └──────────────────────────┘  │
-│           │                      │                 │
-│           └──────────────────────┼─────────────┐   │
-│                                  │             │   │
-│                          ┌────────▼─────────────┴──┐│
-│                          │   PostgreSQL 16         ││
-│                          │  Port: 5432             ││
-│                          │  User: keydral          ││
-│                          │  Password: **** (dev)   ││
-│                          └─────────────────────────┘│
-└─────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    A["Keydral API<br/>Port: 5000<br/>dotnet run"]
+    B["Keycloak OIDC<br/>Port: 8080<br/>Admin: admin/admin"]
+    C["PostgreSQL 16<br/>Port: 5432<br/>User: keydral"]
+
+    A -->|OIDC Authentication| B
+    A -->|Read/Write| C
+    B -->|Read/Write| C
+
+    style A fill:#4A90E2,stroke:#2E5C8A,color:#fff
+    style B fill:#8B4789,stroke:#5A2F5A,color:#fff
+    style C fill:#50C878,stroke:#2D7A4A,color:#fff
 ```
 
 ---
