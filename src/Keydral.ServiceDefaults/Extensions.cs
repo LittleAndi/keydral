@@ -78,7 +78,7 @@ public static class ServiceDefaultsExtensions
         app.MapHealthChecks("/alive", new HealthCheckOptions
         {
             Predicate = r => r.Tags.Contains("live")
-        });
+        }).AllowAnonymous();
 
         // Readiness: all health checks, returns JSON for compatibility
         app.MapHealthChecks("/health", new HealthCheckOptions
@@ -92,7 +92,7 @@ public static class ServiceDefaultsExtensions
                 });
                 await context.Response.WriteAsync(result);
             }
-        });
+        }).AllowAnonymous();
 
         return app;
     }
