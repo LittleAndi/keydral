@@ -6,6 +6,9 @@ using Moq;
 using Keydral.Storage;
 using Keydral.Storage.Repositories;
 using Keydral.Encryption;
+using Keydral.Encryption.Extensions;
+using Keydral.Encryption.Configuration;
+using Keydral.API.Tests.Utilities;
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Hosting;
 
@@ -13,14 +16,13 @@ namespace Keydral.API.Tests;
 
 /// <summary>
 /// WebApplicationFactory for integration testing the Keydral API.
-/// Provides test environment with mock repositories and in-memory database.
+/// Provides test environment with mock repositories and real encryption using a test key.
 /// </summary>
 public class KeydralApiFactory : WebApplicationFactory<Program>
 {
     public Mock<ISecretRepository> MockSecretRepository { get; } = new();
     public Mock<IPolicyRepository> MockPolicyRepository { get; } = new();
     public Mock<IAuditLogRepository> MockAuditLogRepository { get; } = new();
-    public Mock<IEncryptionService> MockEncryptionService { get; } = new();
 
     public KeydralApiFactory()
     {
@@ -47,13 +49,33 @@ public class KeydralApiFactory : WebApplicationFactory<Program>
                 options.Authority = "http://localhost:8080";
             });
 
-            // Remove real encryption service and use mock
+            // Replace real encryption service with test encryption using a test master key
+            // This ensures encryption is properly tested, not mocked away
             var encryptionDescriptor = services.FirstOrDefault(
                 d => d.ServiceType == typeof(IEncryptionService));
             if (encryptionDescriptor != null)
                 services.Remove(encryptionDescriptor);
 
-            // Replace real repositories with mocks for testing  
+            // Remove encryption-related services that depend on file/Kubernetes config
+            var masterKeyProviderDescriptor = services.FirstOrDefault(
+                d => d.ServiceType == typeof(Keydral.Encryption.Providers.IMasterKeyProvider));
+            if (masterKeyProviderDescriptor != null)
+                services.Remove(masterKeyProviderDescriptor);
+
+            var encryptionOptionsDescriptor = services.FirstOrDefault(
+                d => d.ServiceType == typeof(Keydral.Encryption.Configuration.EncryptionOptions));
+            if (encryptionOptionsDescriptor != null)
+                services.Remove(encryptionOptionsDescriptor);
+
+            // Add encryption with test provider - no file I/O, deterministic key
+            var testEncryptionOptions = new Keydral.Encryption.Configuration.EncryptionOptions
+            {
+                Provider = "none", // Provider field is ignored when masterKeyProvider is explicit
+                Algorithm = "AES-256-GCM"
+            };
+            services.AddEncryption(new TestMasterKeyProvider(), testEncryptionOptions);
+
+            // Replace real repositories with mocks for testing
             var secretRepoDescriptor = services.FirstOrDefault(
                 d => d.ServiceType == typeof(ISecretRepository));
             if (secretRepoDescriptor != null)
@@ -69,7 +91,6 @@ public class KeydralApiFactory : WebApplicationFactory<Program>
             if (auditRepoDescriptor != null)
                 services.Remove(auditRepoDescriptor);
 
-            services.AddSingleton(_ => MockEncryptionService.Object);
             services.AddScoped(_ => MockSecretRepository.Object);
             services.AddScoped(_ => MockPolicyRepository.Object);
             services.AddScoped(_ => MockAuditLogRepository.Object);
@@ -91,7 +112,6 @@ public class KeydralApiFactory : WebApplicationFactory<Program>
     /// </summary>
     public void ResetMocks()
     {
-        MockEncryptionService.Reset();
         MockSecretRepository.Reset();
         MockPolicyRepository.Reset();
         MockAuditLogRepository.Reset();

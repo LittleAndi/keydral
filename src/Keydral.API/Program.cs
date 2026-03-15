@@ -8,11 +8,14 @@ using Keydral.Storage.Repositories;
 using Keydral.Encryption.Extensions;
 using Serilog;
 
+// Ensure ASPNETCORE_ENVIRONMENT is visible early (important for test hosts)
+var aspNetCoreEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+
 // Configure Serilog logging
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(new ConfigurationBuilder()
         .AddJsonFile("appsettings.json")
-        .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", optional: true)
+        .AddJsonFile($"appsettings.{aspNetCoreEnv}.json", optional: true)
         .AddEnvironmentVariables()
         .Build())
     .CreateLogger();
@@ -32,7 +35,7 @@ builder.Services.AddScoped<ISecretRepository, SecretRepository>();
 builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 
-// Add encryption layer
+// Add encryption layer - configuration is merged from environment-specific appsettings
 builder.Services.AddEncryption(builder.Configuration);
 
 // Add authentication and authorization
