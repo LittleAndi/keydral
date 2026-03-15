@@ -23,6 +23,9 @@ Log.Logger = new LoggerConfiguration()
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add Aspire service defaults: OpenTelemetry, health checks, service discovery
+builder.AddServiceDefaults();
+
 // Use Serilog as the logging provider
 builder.Host.UseSerilog();
 
@@ -31,8 +34,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Add database context and repositories
+// ConnectionStrings__keydral is injected by Aspire; Database:ConnectionString is the fallback for standalone runs
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration["Database:ConnectionString"]));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("keydral")
+        ?? builder.Configuration["Database:ConnectionString"]));
 builder.Services.AddScoped<ISecretRepository, SecretRepository>();
 builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
@@ -48,6 +54,14 @@ builder.Services.AddAuthenticationAndAuthorization();
 builder.Services.AddAuditLogging(builder.Configuration);
 
 var app = builder.Build();
+
+// Run EF Core migrations automatically in Development (covers Aspire-orchestrated runs)
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
@@ -66,11 +80,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseUserContext();
 
-// Health check endpoint (no auth required)
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
-    .AllowAnonymous()
-    .WithName("Health")
-    .WithOpenApi();
+// Aspire health check endpoints: /health (readiness) and /alive (liveness)
+app.MapDefaultEndpoints();
 
 // Map API endpoints
 app.MapSecretEndpoints();
