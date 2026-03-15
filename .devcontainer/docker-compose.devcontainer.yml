@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/dotnet:8.0
+    volumes:
+      - ..:/workspaces/keydral:cached
+    command: sleep infinity
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Database__ConnectionString: "Server=postgres;Port=5432;Database=keydral;User Id=keydral;Password=keydral_dev_password;"
+      Keycloak__Url: "http://keycloak:8080"
+    networks:
+      - keydral-network
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: keydral
+      POSTGRES_PASSWORD: keydral_dev_password
+      POSTGRES_DB: keydral
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keydral"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - keydral-network
+
+  keycloak:
+    image: keycloak/keycloak:24.0
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keydral
+      KC_DB_PASSWORD: keydral_dev_password
+      KC_PROXY: edge
+      KC_HOSTNAME_URL: http://localhost:8080
+      KC_HOSTNAME_ADMIN_URL: http://localhost:8080
+      KC_HTTP_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: start-dev
+    networks:
+      - keydral-network
+
+volumes:
+  postgres_data:
+
+networks:
+  keydral-network:
+    driver: bridge

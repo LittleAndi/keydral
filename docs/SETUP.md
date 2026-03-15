@@ -4,7 +4,81 @@
 
 This guide walks you through setting up Keydral for local development on Windows, macOS, or Linux.
 
-## Prerequisites
+There are two supported approaches:
+
+- **[Dev Container](#option-a-dev-container-recommended)** — zero-config, fully isolated environment inside VS Code (recommended)
+- **[Manual setup](#option-b-manual-setup)** — run infrastructure locally via Docker Compose and the API with the .NET SDK
+
+---
+
+## Option A: Dev Container (Recommended)
+
+The dev container spins up the full environment (app, PostgreSQL, Keycloak) automatically using VS Code Dev Containers. No local .NET SDK or PostgreSQL installation needed.
+
+### Prerequisites
+
+- **Docker** (v20.0+) - [Download](https://docs.docker.com/get-docker/)
+- **VS Code** with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+- **Git**
+
+### Steps
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/LittleAndi/keydral.git
+   cd keydral
+   ```
+
+2. Open the folder in VS Code:
+
+   ```bash
+   code .
+   ```
+
+3. When prompted _"Reopen in Container"_, click it — or open the command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run **Dev Containers: Reopen in Container**.
+
+4. VS Code will build the container and install dependencies automatically (`dotnet restore` runs on creation).
+
+### Forwarded Ports
+
+| Port | Service     |
+| ---- | ----------- |
+| 5001 | Keydral API |
+| 5432 | PostgreSQL  |
+| 8080 | Keycloak    |
+
+### What's Included
+
+- .NET 8 SDK
+- C# and C# Dev Kit VS Code extensions pre-installed
+- PostgreSQL 16 and Keycloak 24 as service containers
+- Environment variables pre-configured to connect API → PostgreSQL and Keycloak
+
+### Run the API (inside the container)
+
+```bash
+cd src/Keydral.API
+dotnet run
+# API available at http://localhost:5001
+```
+
+To apply database migrations:
+
+```bash
+cd src/Keydral.API
+dotnet ef database update
+```
+
+Keycloak admin console is available at `http://localhost:8080/admin` (admin / admin).
+
+Continue from [Step 4: Configure Keycloak](#step-4-configure-keycloak) to finish setup.
+
+---
+
+## Option B: Manual Setup
+
+### Prerequisites
 
 - **Docker** (v20.0+) - For running PostgreSQL and Keycloak
 - **.NET SDK 8.0** - [Download](https://dotnet.microsoft.com/download/dotnet/8.0)
@@ -356,6 +430,9 @@ docker-compose restart postgres
 docker-compose logs postgres
 ```
 
+> **Dev Container**: The `postgres` service is a sidecar container. Verify it is healthy with
+> `docker inspect keydral-devcontainer-postgres-1 | grep Status`.
+
 ### Issue: Keycloak not responding
 
 ```bash
@@ -366,6 +443,20 @@ docker-compose ps keycloak
 docker-compose restart keycloak
 
 # Wait 30+ seconds for startup
+```
+
+> **Dev Container**: Keycloak may take up to 60 seconds to become ready after the container starts.
+> Check **Ports** view in VS Code to confirm port 8080 is forwarded before accessing the admin console.
+
+### Issue: Dev Container fails to build
+
+```bash
+# Rebuild from scratch (clears cached layers)
+# Command palette → Dev Containers: Rebuild Container
+
+# Or from the terminal
+docker-compose -f .devcontainer/docker-compose.devcontainer.yml down -v
+# Then reopen in container
 ```
 
 ### Issue: JWT Token validation fails

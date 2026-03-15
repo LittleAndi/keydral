@@ -1,0 +1,28 @@
+{
+  "name": "Keydral",
+  "dockerComposeFile": "docker-compose.devcontainer.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/keydral",
+
+  "forwardPorts": [5001, 5432, 8080],
+  "portsAttributes": {
+    "5001": { "label": "Keydral API" },
+    "5432": { "label": "PostgreSQL" },
+    "8080": { "label": "Keycloak" }
+  },
+
+  "postCreateCommand": "dotnet restore",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.vscode-dotnet-runtime"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

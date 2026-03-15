@@ -67,7 +67,21 @@ Keydral is designed as a lightweight, cloud-native trust service:
 
 ---
 
-## 📦 Project Status
+## �️ Getting Started
+
+The fastest way to start developing is with the included **Dev Container**:
+
+1. Install [Docker](https://docs.docker.com/get-docker/) and the VS Code [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
+2. Clone the repo and open it in VS Code.
+3. When prompted, click **Reopen in Container** (or run **Dev Containers: Reopen in Container** from the command palette).
+
+The container brings up PostgreSQL, Keycloak, and a .NET 8 environment automatically.
+
+For full setup instructions (including the manual Docker Compose approach), see [docs/SETUP.md](docs/SETUP.md).
+
+---
+
+## �📦 Project Status
 
 Keydral is currently in early development.
 APIs and features may change as the architecture evolves.
