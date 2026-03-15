@@ -181,7 +181,8 @@ public class ApplicationDbContext : DbContext
             IsSystemRole = true,
             IsActive = true,
             CreatedAt = new DateTime(2026, 3, 15, 0, 0, 0, DateTimeKind.Utc),
-            CreatedBy = "system"
+            CreatedBy = "system",
+            UpdatedAt = new DateTime(2026, 3, 15, 3, 7, 3, 909, DateTimeKind.Utc).AddTicks(699)
         };
 
         var secretWriterRole = new Role
@@ -193,7 +194,8 @@ public class ApplicationDbContext : DbContext
             IsSystemRole = true,
             IsActive = true,
             CreatedAt = new DateTime(2026, 3, 15, 0, 0, 0, DateTimeKind.Utc),
-            CreatedBy = "system"
+            CreatedBy = "system",
+            UpdatedAt = new DateTime(2026, 3, 15, 3, 7, 3, 909, DateTimeKind.Utc).AddTicks(713)
         };
 
         var secretAdminRole = new Role
@@ -205,7 +207,8 @@ public class ApplicationDbContext : DbContext
             IsSystemRole = true,
             IsActive = true,
             CreatedAt = new DateTime(2026, 3, 15, 0, 0, 0, DateTimeKind.Utc),
-            CreatedBy = "system"
+            CreatedBy = "system",
+            UpdatedAt = new DateTime(2026, 3, 15, 3, 7, 3, 909, DateTimeKind.Utc).AddTicks(715)
         };
 
         modelBuilder.Entity<Role>().HasData(secretReaderRole, secretWriterRole, secretAdminRole);
