@@ -23,6 +23,31 @@ public class Secret
     public string EncryptedValue { get; set; } = string.Empty;
 
     /// <summary>
+    /// Encrypted data encryption key (encrypted with master key, base64).
+    /// </summary>
+    public string? EncryptedDataKey { get; set; }
+
+    /// <summary>
+    /// Initialization vector for the encrypted data (base64).
+    /// </summary>
+    public string? InitializationVector { get; set; }
+
+    /// <summary>
+    /// GCM authentication tag for the encrypted data (base64).
+    /// </summary>
+    public string? AuthenticationTag { get; set; }
+
+    /// <summary>
+    /// Initialization vector for the encrypted data key (base64).
+    /// </summary>
+    public string? KeyInitializationVector { get; set; }
+
+    /// <summary>
+    /// GCM authentication tag for the encrypted data key (base64).
+    /// </summary>
+    public string? KeyAuthenticationTag { get; set; }
+
+    /// <summary>
     /// Reference to the data key used to encrypt this secret.
     /// </summary>
     public Guid EncryptionKeyId { get; set; }
@@ -33,14 +58,29 @@ public class Secret
     public virtual EncryptionKey? EncryptionKey { get; set; }
 
     /// <summary>
-    /// Current version number (incremented on each update).
+    /// Optional description of the secret.
     /// </summary>
-    public int CurrentVersion { get; set; } = 1;
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// User who created this secret.
+    /// </summary>
+    public string? CreatedBy { get; set; }
+
+    /// <summary>
+    /// Tags for categorization (comma-separated).
+    /// </summary>
+    public string? Tags { get; set; }
 
     /// <summary>
     /// Optional metadata / tags (JSON).
     /// </summary>
     public string? Metadata { get; set; }
+
+    /// <summary>
+    /// Current version number (incremented on each update).
+    /// </summary>
+    public int CurrentVersion { get; set; } = 1;
 
     /// <summary>
     /// Timestamp when the secret was first created.

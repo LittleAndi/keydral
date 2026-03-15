@@ -1,7 +1,9 @@
 using Keydral.API.Authentication;
 using Keydral.API.Middleware;
+using Keydral.API.Endpoints;
 using Keydral.Core.Extensions;
 using Keydral.Storage;
+using Keydral.Storage.Repositories;
 using Keydral.Encryption.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,8 +12,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Add database context
+// Add database context and repositories
 builder.Services.AddScoped<ApplicationDbContext>();
+builder.Services.AddScoped<ISecretRepository, SecretRepository>();
+builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
+builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 
 // Add encryption layer
 builder.Services.AddEncryption(builder.Configuration);
@@ -42,9 +47,10 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
     .WithName("Health")
     .WithOpenApi();
 
-// TODO: Add secret endpoints (list, get, create, update, delete)
-// TODO: Add policy endpoints (list, get, create, update, delete)
-// TODO: Add audit log endpoints (list)
+// Map API endpoints
+app.MapSecretEndpoints();
+app.MapPolicyEndpoints();
+app.MapAuditLogEndpoints();
 
 app.Run();
 
