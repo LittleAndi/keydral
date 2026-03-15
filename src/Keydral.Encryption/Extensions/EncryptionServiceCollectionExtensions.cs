@@ -20,13 +20,15 @@ public static class EncryptionServiceCollectionExtensions
         // Load configuration
         var options = new EncryptionOptions();
         configuration.GetSection("Encryption").Bind(options);
-        options.Validate();
 
         services.AddSingleton(options);
 
-        // Register master key provider based on configuration
+        // Register master key provider based on configuration.
+        // Validation is deferred to first resolution so that WebApplicationFactory
+        // can replace this registration in tests before it is ever invoked.
         services.AddSingleton<IMasterKeyProvider>(provider =>
         {
+            options.Validate();
             return options.Provider.ToLowerInvariant() switch
             {
                 "file" => new FileBasedMasterKeyProvider(options.MasterKeyFilePath!),
