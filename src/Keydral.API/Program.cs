@@ -15,6 +15,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using System.Text.Json;
+using Scalar.AspNetCore;
 
 // Ensure ASPNETCORE_ENVIRONMENT is visible early (important for test hosts)
 var aspNetCoreEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
@@ -65,7 +66,6 @@ builder.Host.UseSerilog();
 
 // Add services to the container
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
 // Add database context and repositories
 // ConnectionStrings__keydral is injected by Aspire; Database:ConnectionString is the fallback for standalone runs
@@ -87,6 +87,9 @@ builder.Services.AddAuthenticationAndAuthorization();
 // Add audit logging
 builder.Services.AddAuditLogging(builder.Configuration);
 
+// Add OpenAPI/Swagger generation
+builder.Services.AddOpenApi();
+
 var app = builder.Build();
 
 // Run EF Core migrations automatically in Development (covers Aspire-orchestrated runs)
@@ -100,8 +103,8 @@ if (app.Environment.IsDevelopment())
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference().AllowAnonymous();
 }
 
 app.UseHttpsRedirection();
