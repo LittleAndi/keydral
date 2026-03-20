@@ -6,8 +6,15 @@ using Keydral.Core.Extensions;
 using Keydral.Storage;
 using Keydral.Storage.Repositories;
 using Keydral.Encryption.Extensions;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
+using System.Text.Json;
 
 // Ensure ASPNETCORE_ENVIRONMENT is visible early (important for test hosts)
 var aspNetCoreEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
@@ -23,8 +30,35 @@ Log.Logger = new LoggerConfiguration()
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add Aspire service defaults: OpenTelemetry, health checks, service discovery
-builder.AddServiceDefaults();
+// Register health checks
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
+
+// Configure OpenTelemetry - exports automatically when OTEL_EXPORTER_OTLP_ENDPOINT is set (e.g. by Aspire)
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    logging.IncludeFormattedMessage = true;
+    logging.IncludeScopes = true;
+});
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(c => c.AddService(builder.Environment.ApplicationName))
+    .WithMetrics(metrics =>
+    {
+        metrics.AddAspNetCoreInstrumentation()
+               .AddHttpClientInstrumentation()
+               .AddRuntimeInstrumentation();
+    })
+    .WithTracing(tracing =>
+    {
+        tracing.AddAspNetCoreInstrumentation()
+               .AddHttpClientInstrumentation();
+    });
+
+if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+{
+    builder.Services.AddOpenTelemetry().UseOtlpExporter();
+}
 
 // Use Serilog as the logging provider
 builder.Host.UseSerilog();
@@ -80,8 +114,24 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseUserContext();
 
-// Aspire health check endpoints: /health (readiness) and /alive (liveness)
-app.MapDefaultEndpoints();
+// Health check endpoints: /alive (liveness) and /health (readiness)
+app.MapHealthChecks("/alive", new HealthCheckOptions
+{
+    Predicate = r => r.Tags.Contains("live")
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json; charset=utf-8";
+        var result = JsonSerializer.Serialize(new
+        {
+            status = report.Status.ToString().ToLower()
+        });
+        await context.Response.WriteAsync(result);
+    }
+}).AllowAnonymous();
 
 // Map API endpoints
 app.MapSecretEndpoints();

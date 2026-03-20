@@ -12,13 +12,13 @@ COPY ["src/Keydral.Encryption/Keydral.Encryption.csproj", "src/Keydral.Encryptio
 COPY ["src/Keydral.Storage/Keydral.Storage.csproj", "src/Keydral.Storage/"]
 
 # Restore dependencies
-RUN dotnet restore "Keydral.sln"
+RUN dotnet restore "src/Keydral.API/Keydral.API.csproj"
 
 # Copy source code
 COPY ["src/", "src/"]
 
 # Build
-RUN dotnet build "Keydral.sln" -c Release --no-restore
+RUN dotnet build "src/Keydral.API/Keydral.API.csproj" -c Release --no-restore
 
 # Publish
 RUN dotnet publish "src/Keydral.API/Keydral.API.csproj" -c Release -o /app/publish --no-build
@@ -30,10 +30,6 @@ WORKDIR /app
 
 # Copy published app
 COPY --from=builder /app/publish .
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1
 
 # Expose port
 EXPOSE 5000
