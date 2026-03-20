@@ -87,6 +87,9 @@ public static class KeycloakAuthenticationExtensions
             options.Audience = keycloakOptions.ClientId;
             options.MetadataAddress = keycloakOptions.GetDiscoveryUrl();
 
+            // Require HTTPS for metadata endpoint (Keycloak now runs on HTTPS in Aspire)
+            options.RequireHttpsMetadata = true;
+
             // Security token parameters
             options.TokenValidationParameters = new TokenValidationParameters
             {

@@ -22,11 +22,11 @@ services:
       - keydral-network
 
   keycloak:
-    image: keycloak/keycloak:24.0
+    image: keycloak/keycloak:26.5.5
     container_name: keydral-keycloak
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keydral

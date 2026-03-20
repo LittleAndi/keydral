@@ -9,13 +9,13 @@ namespace Keydral.CLI.Config;
 public class CliConfig
 {
     [JsonPropertyName("api_url")]
-    public string ApiUrl { get; set; } = "http://localhost:5001";
+    public string ApiUrl { get; set; } = "https://localhost:5001";
 
     [JsonPropertyName("keycloak_url")]
-    public string KeycloakUrl { get; set; } = "http://localhost:8080";
+    public string KeycloakUrl { get; set; } = "https://localhost:8081";
 
     [JsonPropertyName("realm")]
-    public string Realm { get; set; } = "master";
+    public string Realm { get; set; } = "keydral";
 
     [JsonPropertyName("client_id")]
     public string ClientId { get; set; } = "keydral-cli";
