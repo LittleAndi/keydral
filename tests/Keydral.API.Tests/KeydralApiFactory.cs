@@ -42,11 +42,13 @@ public class KeydralApiFactory : WebApplicationFactory<Program>
             if (dbContextDescriptor != null)
                 services.Remove(dbContextDescriptor);
 
-            // Configure JWT Bearer to not require HTTPS for testing
+            // Configure JWT Bearer for testing: no HTTPS required, and Authority must include
+            // the realm path (/realms/keydral) because Keycloak scopes its OIDC discovery
+            // endpoint under the realm — <Authority>/.well-known/openid-configuration
             services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
                 options.RequireHttpsMetadata = false;
-                options.Authority = "http://localhost:8080";
+                options.Authority = "http://localhost:8080/realms/keydral";
             });
 
             // Replace real encryption service with test encryption using a test master key

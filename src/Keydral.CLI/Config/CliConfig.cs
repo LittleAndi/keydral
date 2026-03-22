@@ -12,7 +12,7 @@ public class CliConfig
     public string ApiUrl { get; set; } = "https://localhost:5001";
 
     [JsonPropertyName("keycloak_url")]
-    public string KeycloakUrl { get; set; } = "https://localhost:8081";
+    public string KeycloakUrl { get; set; } = "http://localhost:8080";
 
     [JsonPropertyName("realm")]
     public string Realm { get; set; } = "keydral";

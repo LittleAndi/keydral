@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 
@@ -67,7 +68,8 @@ public static class KeycloakAuthenticationExtensions
     /// </summary>
     public static IServiceCollection AddKeycloakAuthentication(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         var keycloakOptions = new KeycloakOptions();
         configuration.GetSection(KeycloakOptions.SectionName).Bind(keycloakOptions);
@@ -87,8 +89,8 @@ public static class KeycloakAuthenticationExtensions
             options.Audience = keycloakOptions.ClientId;
             options.MetadataAddress = keycloakOptions.GetDiscoveryUrl();
 
-            // Require HTTPS for metadata endpoint (Keycloak now runs on HTTPS in Aspire)
-            options.RequireHttpsMetadata = true;
+            // Require HTTPS in production; allow HTTP in development (Keycloak start-dev has no TLS)
+            options.RequireHttpsMetadata = !environment.IsDevelopment();
 
             // Security token parameters
             options.TokenValidationParameters = new TokenValidationParameters

@@ -81,7 +81,7 @@ builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddEncryption(builder.Configuration);
 
 // Add authentication and authorization
-builder.Services.AddKeycloakAuthentication(builder.Configuration);
+builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddAuthenticationAndAuthorization();
 
 // Add audit logging

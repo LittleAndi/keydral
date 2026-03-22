@@ -14,7 +14,7 @@ var keycloak = builder.AddKeycloak("keycloak", 8080)
 // API — waits for infrastructure, receives injected connection strings
 builder.AddProject<Projects.Keydral_API>("keydral-api", launchProfileName: "https")
     .WithReference(postgres)
-    .WithEnvironment("Keycloak__Url", keycloak.GetEndpoint("https"))
+    .WithEnvironment("Keycloak__Url", keycloak.GetEndpoint("http"))
     .WithEnvironment("Keycloak__Realm", "keydral")
     .WithEnvironment("Keycloak__ClientId", "keydral-api")
     .WaitFor(postgres)
