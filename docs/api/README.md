@@ -475,7 +475,86 @@ Server error
 
 ## Rate Limiting
 
-Currently not implemented. Coming in Phase 2.
+The API enforces rate limits at two levels to ensure stability and prevent abuse.
+
+### Per-IP Global Limit
+
+Every IP address is limited to **1000 requests per minute** across all endpoints. This is the primary DDoS/noisy-neighbour mitigation layer.
+
+Trusted source IPs (internal services, monitoring agents) can be whitelisted in `appsettings.json`:
+
+```json
+"RateLimiting": {
+  "WhitelistedIPs": ["10.0.0.1", "192.168.1.50"]
+}
+```
+
+### Per-User Per-Endpoint Limits
+
+Authenticated requests are additionally limited per user per endpoint group:
+
+| Endpoint Group | Limit |
+|---|---|
+| `GET /api/secrets` | 100 requests / minute |
+| `POST /api/secrets`, `PUT`, `DELETE`, `restore` | 10 requests / minute |
+| `GET /api/audit-logs` | 50 requests / minute |
+| `GET /health` | No per-user limit (only global per-IP) |
+
+Unauthenticated requests are limited by source IP within the same partition.
+
+### Rate Limit Response Headers
+
+Every response from a rate-limited endpoint includes:
+
+| Header | Description |
+|---|---|
+| `X-RateLimit-Limit` | Maximum requests allowed per window |
+| `X-RateLimit-Remaining` | Permits remaining in the current window |
+| `X-RateLimit-Reset` | Unix timestamp when the window resets |
+
+When a request is rejected (HTTP **429 Too Many Requests**):
+
+| Header | Description |
+|---|---|
+| `Retry-After` | Seconds to wait before retrying |
+
+### 429 Too Many Requests
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc6585#section-4",
+  "title": "Too Many Requests",
+  "status": 429,
+  "detail": "Rate limit exceeded. Please try again later."
+}
+```
+
+### Configuration (`appsettings.json`)
+
+```json
+"RateLimiting": {
+  "Enabled": true,
+  "WhitelistedIPs": [],
+  "PerIp": {
+    "PermitLimit": 1000,
+    "WindowSeconds": 60
+  },
+  "SecretsGet": {
+    "PermitLimit": 100,
+    "WindowSeconds": 60
+  },
+  "SecretsPost": {
+    "PermitLimit": 10,
+    "WindowSeconds": 60
+  },
+  "AuditLogsGet": {
+    "PermitLimit": 50,
+    "WindowSeconds": 60
+  }
+}
+```
+
+All limits use a **6-segment sliding window** (replenished every 10 seconds) for smooth rate distribution.
 
 ---
 

@@ -2,6 +2,7 @@ using Keydral.API.Authentication;
 using Keydral.API.Middleware;
 using Keydral.API.Endpoints;
 using Keydral.API.Auditing;
+using Keydral.API.RateLimiting;
 using Keydral.Core.Extensions;
 using Keydral.Storage;
 using Keydral.Storage.Repositories;
@@ -87,6 +88,9 @@ builder.Services.AddAuthenticationAndAuthorization();
 // Add audit logging
 builder.Services.AddAuditLogging(builder.Configuration);
 
+// Add rate limiting (per-IP DDoS protection + per-user per-endpoint quotas)
+builder.Services.AddApiRateLimiting(builder.Configuration);
+
 // Add OpenAPI/Swagger generation
 builder.Services.AddOpenApi();
 
@@ -108,6 +112,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Rate limit headers middleware must run before UseRateLimiter so that the
+// OnStarting callback is registered before the rate limiter processes the request.
+app.UseRateLimitHeaders();
+app.UseRateLimiter();
 
 // Audit logging middleware (before authentication for complete tracing)
 app.UseAuditLogging();

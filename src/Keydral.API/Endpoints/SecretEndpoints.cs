@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Keydral.API.Models;
 using Keydral.API.Authorization;
 using Keydral.API.Middleware;
+using Keydral.API.RateLimiting;
 using Keydral.Core.Authorization;
 using Keydral.Core.Authentication;
 using Keydral.Encryption;
@@ -23,31 +24,38 @@ public static class SecretEndpoints
 
         group.MapGet("/", ListSecrets)
             .WithName("ListSecrets")
-            .WithDescription("List all secrets (without values)");
+            .WithDescription("List all secrets (without values)")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.GetSecretsPolicy));
 
         group.MapGet("/{name}", GetSecret)
             .WithName("GetSecret")
-            .WithDescription("Get a specific secret by name");
+            .WithDescription("Get a specific secret by name")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.GetSecretsPolicy));
 
         group.MapPost("/", CreateSecret)
             .WithName("CreateSecret")
-            .WithDescription("Create a new secret");
+            .WithDescription("Create a new secret")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.PostSecretsPolicy));
 
         group.MapPut("/{name}", UpdateSecret)
             .WithName("UpdateSecret")
-            .WithDescription("Update an existing secret");
+            .WithDescription("Update an existing secret")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.PostSecretsPolicy));
 
         group.MapDelete("/{name}", DeleteSecret)
             .WithName("DeleteSecret")
-            .WithDescription("Delete a secret (soft delete)");
+            .WithDescription("Delete a secret (soft delete)")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.PostSecretsPolicy));
 
         group.MapGet("/{name}/versions", GetSecretVersions)
             .WithName("GetSecretVersions")
-            .WithDescription("Get version history for a secret");
+            .WithDescription("Get version history for a secret")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.GetSecretsPolicy));
 
         group.MapPost("/{name}/restore/{version}", RestoreSecretVersion)
             .WithName("RestoreSecretVersion")
-            .WithDescription("Restore a secret to a previous version");
+            .WithDescription("Restore a secret to a previous version")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.PostSecretsPolicy));
     }
 
     /// <summary>
