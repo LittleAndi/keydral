@@ -1,0 +1,53 @@
+{
+  "realm": "keydral",
+  "enabled": true,
+  "displayName": "Keydral",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "clients": [
+    {
+      "clientId": "keydral-api",
+      "name": "Keydral API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "bearerOnly": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    },
+    {
+      "clientId": "keydral-cli",
+      "name": "Keydral CLI",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "true"
+      }
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "secret-reader",
+        "description": "Can read secret values and versions"
+      },
+      {
+        "name": "secret-writer",
+        "description": "Can read, write, and delete secrets"
+      },
+      {
+        "name": "secret-admin",
+        "description": "Full administrator access to secrets, policies, and audit"
+      }
+    ]
+  }
+}

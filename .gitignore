@@ -1,0 +1,61 @@
+# Keydral .gitignore
+
+# General
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.iml
+*.swp
+*.sublime-workspace
+*.sublime-project
+.VS/
+
+# .NET / Visual Studio
+bin/
+obj/
+.vs/
+.vscode/
+*.sln.iml
+*.user
+*.csproj.user
+*.ReSharper
+*.suo
+*.nuget.props
+*.nuget.targets
+.dotnet/
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# Build outputs
+dist/
+build/
+release/
+
+# Local environment files
+.env
+.env.local
+*.pem
+*.key
+master-key.txt
+appsettings.*.json
+src/**/logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Testing
+coverage/
+.nyc_output/
+TestResults/

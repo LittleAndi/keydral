@@ -1,0 +1,6 @@
+@Keydral.API_HostAddress = http://localhost:5186
+
+GET {{Keydral.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
