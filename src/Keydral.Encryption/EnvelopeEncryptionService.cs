@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
+using Keydral.Encryption.Configuration;
 using Keydral.Encryption.Models;
 using Keydral.Encryption.Providers;
+using Keydral.Encryption.Utilities;
 
 namespace Keydral.Encryption;
 
@@ -47,6 +49,8 @@ public interface IEncryptionService
 public class EnvelopeEncryptionService : IEncryptionService
 {
     private readonly IMasterKeyProvider _masterKeyProvider;
+    private readonly bool _secureWipeEnabled;
+    private const string SupportedAlgorithm = "AES-256-GCM";
     private const int KeySizeInBytes = 32; // 256 bits
     private const int IVSizeInBytes = 12; // 96 bits (standard for GCM)
     private const int TagSizeInBytes = 16; // 128 bits (GCM tag)
@@ -54,9 +58,20 @@ public class EnvelopeEncryptionService : IEncryptionService
     /// <summary>
     /// Constructor.
     /// </summary>
-    public EnvelopeEncryptionService(IMasterKeyProvider masterKeyProvider)
+    public EnvelopeEncryptionService(IMasterKeyProvider masterKeyProvider, EncryptionOptions options)
     {
         _masterKeyProvider = masterKeyProvider ?? throw new ArgumentNullException(nameof(masterKeyProvider));
+
+        if (options == null)
+            throw new ArgumentNullException(nameof(options));
+
+        if (options.Algorithm != SupportedAlgorithm)
+            throw new InvalidOperationException(
+                $"Unsupported algorithm: '{options.Algorithm}'. " +
+                $"The only supported algorithm is '{SupportedAlgorithm}'. " +
+                $"Set Encryption:Algorithm to '{SupportedAlgorithm}' or remove it to use the default.");
+
+        _secureWipeEnabled = options.SecureWipeEnabled;
     }
 
     /// <summary>
@@ -93,7 +108,7 @@ public class EnvelopeEncryptionService : IEncryptionService
         finally
         {
             // Secure cleanup
-            dek.ZeroKeyBytes();
+            WipeKeyMaterial(dek.KeyBytes);
         }
     }
 
@@ -128,7 +143,7 @@ public class EnvelopeEncryptionService : IEncryptionService
         finally
         {
             // Secure cleanup
-            dek.ZeroKeyBytes();
+            WipeKeyMaterial(dek.KeyBytes);
         }
     }
 
@@ -179,6 +194,17 @@ public class EnvelopeEncryptionService : IEncryptionService
             // The provider is responsible for securing the master key.
             // Zeroing it here could corrupt cached keys in providers like FileBasedMasterKeyProvider.
         }
+    }
+
+    /// <summary>
+    /// Wipe key material from memory using the configured wipe strategy.
+    /// </summary>
+    private void WipeKeyMaterial(byte[] keyBytes)
+    {
+        if (_secureWipeEnabled)
+            SecureMemory.SecureWipeBytes(keyBytes);
+        else
+            SecureMemory.ZeroBytes(keyBytes);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using Keydral.Encryption.Models;
+using Keydral.Encryption.Configuration;
 using Keydral.Encryption.Providers;
 
 namespace Keydral.Encryption.Tests;
@@ -15,7 +16,7 @@ public class EnvelopeEncryptionTests
     {
         // Create a test master key provider with a fixed key
         _masterKeyProvider = new TestMasterKeyProvider();
-        _encryptionService = new EnvelopeEncryptionService(_masterKeyProvider);
+        _encryptionService = new EnvelopeEncryptionService(_masterKeyProvider, new EncryptionOptions());
     }
 
     [Fact]
@@ -147,6 +148,35 @@ public class EnvelopeEncryptionTests
     {
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>(() => _encryptionService.DecryptAsync(null!));
+    }
+
+    [Fact]
+    public void Constructor_WithUnsupportedAlgorithm_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        var options = new EncryptionOptions { Algorithm = "AES-128-GCM" };
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => new EnvelopeEncryptionService(_masterKeyProvider, options));
+        Assert.Contains("AES-128-GCM", ex.Message);
+        Assert.Contains("AES-256-GCM", ex.Message);
+    }
+
+    [Fact]
+    public async Task EncryptDecrypt_WithSecureWipeDisabled_ShouldRoundTrip()
+    {
+        // Arrange
+        var options = new EncryptionOptions { SecureWipeEnabled = false };
+        var service = new EnvelopeEncryptionService(_masterKeyProvider, options);
+        var plaintext = "secret-no-secure-wipe";
+
+        // Act
+        var encrypted = await service.EncryptAsync(plaintext);
+        var decrypted = await service.DecryptAsync(encrypted);
+
+        // Assert
+        Assert.Equal(plaintext, decrypted);
     }
 }
 

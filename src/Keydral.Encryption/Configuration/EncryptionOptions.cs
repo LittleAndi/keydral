@@ -57,11 +57,12 @@ public class EncryptionOptions
                     "Use 'file', 'kubernetes', or 'none'");
         }
 
-        if (!new[] { "AES-256-GCM", "AES-128-GCM" }.Contains(Algorithm))
+        if (Algorithm != "AES-256-GCM")
         {
             throw new InvalidOperationException(
-                $"Unsupported algorithm: {Algorithm}. " +
-                "Currently supported: AES-256-GCM, AES-128-GCM");
+                $"Unsupported algorithm: '{Algorithm}'. " +
+                "The only supported algorithm is 'AES-256-GCM'. " +
+                "Set Encryption:Algorithm to 'AES-256-GCM' or remove it to use the default.");
         }
     }
 }

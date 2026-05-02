@@ -42,7 +42,11 @@ public static class EncryptionServiceCollectionExtensions
         });
 
         // Register encryption service
-        services.AddSingleton<IEncryptionService, EnvelopeEncryptionService>();
+        services.AddSingleton<IEncryptionService>(provider =>
+        {
+            var masterKeyProvider = provider.GetRequiredService<IMasterKeyProvider>();
+            return new EnvelopeEncryptionService(masterKeyProvider, options);
+        });
 
         return services;
     }
@@ -60,7 +64,7 @@ public static class EncryptionServiceCollectionExtensions
 
         services.AddSingleton(options);
         services.AddSingleton(masterKeyProvider);
-        services.AddSingleton<IEncryptionService, EnvelopeEncryptionService>();
+        services.AddSingleton<IEncryptionService>(new EnvelopeEncryptionService(masterKeyProvider, options));
 
         return services;
     }
