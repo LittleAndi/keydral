@@ -41,6 +41,22 @@ public class TokenResponse
     public string TokenType { get; set; } = "Bearer";
 }
 
+public enum DeviceFlowPollStage
+{
+    WaitingForAuthorization,
+    Retrying
+}
+
+public sealed record DeviceFlowPollUpdate(DeviceFlowPollStage Stage, int PollIntervalSeconds)
+{
+    public string StatusMessage =>
+        Stage switch
+        {
+            DeviceFlowPollStage.Retrying => "Retrying authorization check...",
+            _ => "Waiting for authorization..."
+        };
+}
+
 /// <summary>
 /// OAuth 2.0 error response (RFC 8628).
 /// </summary>
@@ -66,13 +82,20 @@ public class AuthenticationService
     private readonly string _realm;
     private readonly string _clientId;
     private readonly HttpClient _httpClient;
+    private readonly Func<TimeSpan, Task> _delayAsync;
 
-    public AuthenticationService(string keycloakUrl, string realm, string clientId, HttpClient? httpClient = null)
+    public AuthenticationService(
+        string keycloakUrl,
+        string realm,
+        string clientId,
+        HttpClient? httpClient = null,
+        Func<TimeSpan, Task>? delayAsync = null)
     {
         _keycloakUrl = keycloakUrl.TrimEnd('/');
         _realm = realm;
         _clientId = clientId;
         _httpClient = httpClient ?? SharedHttpClient;
+        _delayAsync = delayAsync ?? (delay => Task.Delay(delay));
     }
 
     /// <summary>
@@ -117,7 +140,11 @@ public class AuthenticationService
     /// <param name="deviceCode">The device code to poll with</param>
     /// <param name="expiresIn">Token expiration time in seconds</param>
     /// <param name="initialInterval">Initial poll interval in seconds (from device auth response)</param>
-    public async Task<TokenResponse> PollForTokenAsync(string deviceCode, int expiresIn, int initialInterval = 5)
+    public async Task<TokenResponse> PollForTokenAsync(
+        string deviceCode,
+        int expiresIn,
+        int initialInterval = 5,
+        Action<DeviceFlowPollUpdate>? onProgress = null)
     {
         var tokenUrl = $"{_keycloakUrl}/realms/{_realm}/protocol/openid-connect/token";
         var startTime = DateTime.UtcNow;
@@ -125,6 +152,8 @@ public class AuthenticationService
         var interval = initialInterval > 0 ? initialInterval : DefaultInterval; // Poll interval in seconds
         const int MaxInterval = 30; // RFC 8628 recommended max interval
         const int BackoffIncrement = 5; // RFC 8628 slow_down increment
+
+        ReportPollingUpdate(onProgress, DeviceFlowPollStage.WaitingForAuthorization, interval);
 
         while ((DateTime.UtcNow - startTime).TotalSeconds < expiresIn)
         {
@@ -180,10 +209,12 @@ public class AuthenticationService
                             // RFC 8628 slow_down: server is busy, increase polling interval
                             case "slow_down":
                                 interval = Math.Min(interval + BackoffIncrement, MaxInterval);
+                                ReportPollingUpdate(onProgress, DeviceFlowPollStage.Retrying, interval);
                                 break;
 
                             // RFC 8628 authorization_pending: user hasn't authorized yet, keep polling
                             case "authorization_pending":
+                                ReportPollingUpdate(onProgress, DeviceFlowPollStage.WaitingForAuthorization, interval);
                                 break;
 
                             // Unknown error
@@ -197,7 +228,7 @@ public class AuthenticationService
                 }
 
                 // If not ready yet, wait and retry
-                await Task.Delay(interval * 1000);
+                await _delayAsync(TimeSpan.FromSeconds(interval));
             }
             catch (OAuth2Exception)
             {
@@ -206,11 +237,20 @@ public class AuthenticationService
             catch (HttpRequestException)
             {
                 // Network error, retry after interval
-                await Task.Delay(interval * 1000);
+                ReportPollingUpdate(onProgress, DeviceFlowPollStage.Retrying, interval);
+                await _delayAsync(TimeSpan.FromSeconds(interval));
             }
         }
 
         throw new OAuth2Exception("timeout", "Device code authorization timed out. Please check your internet connection and try again.", isRecoverable: true);
+    }
+
+    private static void ReportPollingUpdate(
+        Action<DeviceFlowPollUpdate>? onProgress,
+        DeviceFlowPollStage stage,
+        int interval)
+    {
+        onProgress?.Invoke(new DeviceFlowPollUpdate(stage, interval));
     }
 
     /// <summary>
