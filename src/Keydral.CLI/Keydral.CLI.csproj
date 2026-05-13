@@ -9,13 +9,10 @@
 
   <ItemGroup>
     <!-- Command-line parsing and utilities -->
-    <PackageReference Include="Spectre.Console" Version="0.54.0" />
+    <PackageReference Include="Spectre.Console" Version="0.55.2" />
 
     <!-- JWT token handling -->
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
-
-    <!-- OAuth 2.0 device flow -->
-    <PackageReference Include="IdentityModel" Version="7.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.18.0" />
   </ItemGroup>
 
   <ItemGroup>
