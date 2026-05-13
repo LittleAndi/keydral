@@ -62,8 +62,38 @@ public static class RateLimitingExtensions
         IConfiguration configuration)
     {
         var section = configuration.GetSection("RateLimiting");
+
+        // Always register AddRateLimiter so that app.UseRateLimiter() is safe to call
+        // unconditionally in Program.cs, regardless of the Enabled flag.
+        // When disabled, no GlobalLimiter is configured, making it a transparent pass-through.
+        services.AddRateLimiter(opts =>
+        {
+            opts.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            opts.OnRejected = async (ctx, ct) =>
+            {
+                ctx.HttpContext.Response.StatusCode  = StatusCodes.Status429TooManyRequests;
+                ctx.HttpContext.Response.ContentType = "application/json";
+
+                if (ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                    ctx.HttpContext.Response.Headers.RetryAfter =
+                        ((int)retryAfter.TotalSeconds).ToString();
+                else
+                    ctx.HttpContext.Response.Headers.RetryAfter = "60"; // default: retry in 60 s
+
+                await ctx.HttpContext.Response.WriteAsync(
+                    "{\"type\":\"https://tools.ietf.org/html/rfc6585#section-4\"," +
+                    "\"title\":\"Too Many Requests\",\"status\":429," +
+                    "\"detail\":\"Rate limit exceeded. Please try again later.\"}",
+                    ct);
+            };
+
+            // GlobalLimiter is set lazily by GlobalLimiterConfigurator (IPostConfigureOptions)
+            // to allow DI-resolved dependencies (perEndpointLimiter) to be overridden in tests.
+        });
+
         if (!section.GetValue("Enabled", true))
-            return services;
+            return services; // UseRateLimiter will be a transparent pass-through
 
         // ---- per-endpoint policy store (lazy factory — replaceable in tests) ----------
         // Reads from IConfiguration at first resolve time, NOT at registration time.
@@ -111,33 +141,6 @@ public static class RateLimitingExtensions
                         AutoReplenishment = true
                     });
             });
-        });
-
-        // ---- rate limiter middleware services ----------------------------------------
-        services.AddRateLimiter(opts =>
-        {
-            opts.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-
-            opts.OnRejected = async (ctx, ct) =>
-            {
-                ctx.HttpContext.Response.StatusCode  = StatusCodes.Status429TooManyRequests;
-                ctx.HttpContext.Response.ContentType = "application/json";
-
-                if (ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-                    ctx.HttpContext.Response.Headers.RetryAfter =
-                        ((int)retryAfter.TotalSeconds).ToString();
-                else
-                    ctx.HttpContext.Response.Headers.RetryAfter = "60"; // default: retry in 60 s
-
-                await ctx.HttpContext.Response.WriteAsync(
-                    "{\"type\":\"https://tools.ietf.org/html/rfc6585#section-4\"," +
-                    "\"title\":\"Too Many Requests\",\"status\":429," +
-                    "\"detail\":\"Rate limit exceeded. Please try again later.\"}",
-                    ct);
-            };
-
-            // GlobalLimiter is set lazily by GlobalLimiterConfigurator (IPostConfigureOptions)
-            // to allow DI-resolved dependencies (perEndpointLimiter) to be overridden in tests.
         });
 
         // Register IPostConfigureOptions so GlobalLimiter can resolve DI services lazily.

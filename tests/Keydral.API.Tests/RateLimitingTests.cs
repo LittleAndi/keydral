@@ -200,6 +200,14 @@ public class RateLimitingTests : IAsyncLifetime
 /// Uses ConfigureServices (runs AFTER the app's Program.cs) so the DI singleton replacement
 /// takes effect before any singletons are resolved.
 /// </summary>
+/// <remarks>
+/// xUnit instantiates a new test-class instance per test method, so <c>InitializeAsync</c>
+/// creates a fresh <see cref="RateLimitingTestFactory"/> for every test. Each factory has its
+/// own root <see cref="IServiceProvider"/>, meaning all singletons — including
+/// <see cref="System.Threading.RateLimiting.PartitionedRateLimiter{T}"/> — are freshly
+/// created. Sliding-window state cannot leak across test methods sharing the same partition
+/// keys (e.g. <c>test-user-1</c>).
+/// </remarks>
 internal sealed class RateLimitingTestFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -295,9 +303,14 @@ internal sealed class RateLimitingWhitelistTestFactory : WebApplicationFactory<P
                 [RateLimitingExtensions.GetAuditLogsPolicy] = new(1000, 60),
             }));
 
-            // Replace GlobalLimiterConfigurator with a test version that uses
-            // per-IP limit = 3 AND whitelists "unknown".
-            services.RemoveAll<IPostConfigureOptions<RateLimiterOptions>>();
+            // Replace only the production GlobalLimiterConfigurator with the test version
+            // that uses per-IP limit = 3 AND whitelists "unknown".
+            // Filtering by type name (rather than RemoveAll) preserves any framework-registered
+            // IPostConfigureOptions<RateLimiterOptions> handlers.
+            var globalLimiterDesc = services.FirstOrDefault(d =>
+                d.ServiceType == typeof(IPostConfigureOptions<RateLimiterOptions>) &&
+                d.ImplementationType?.Name == "GlobalLimiterConfigurator");
+            if (globalLimiterDesc != null) services.Remove(globalLimiterDesc);
             services.AddSingleton<IPostConfigureOptions<RateLimiterOptions>>(sp =>
                 new WhitelistTestGlobalLimiter(sp));
         });
