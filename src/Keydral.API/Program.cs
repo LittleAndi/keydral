@@ -2,6 +2,7 @@ using Keydral.API.Authentication;
 using Keydral.API.Middleware;
 using Keydral.API.Endpoints;
 using Keydral.API.Auditing;
+using Keydral.API.RateLimiting;
 using Keydral.Core.Extensions;
 using Keydral.Storage;
 using Keydral.Storage.Repositories;
@@ -87,6 +88,9 @@ builder.Services.AddAuthenticationAndAuthorization();
 // Add audit logging
 builder.Services.AddAuditLogging(builder.Configuration);
 
+// Add rate limiting (per-IP DDoS protection + per-user per-endpoint quotas)
+builder.Services.AddApiRateLimiting(builder.Configuration);
+
 // Add OpenAPI/Swagger generation
 builder.Services.AddOpenApi();
 
@@ -116,6 +120,12 @@ app.UseAuditLogging();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseUserContext();
+
+// Rate limiting after authentication so that the per-user partition key resolves
+// the authenticated identity (ClaimTypes.NameIdentifier / "sub" claim).
+// Per-user quotas only work correctly when context.User is populated first.
+app.UseRateLimitHeaders();
+app.UseRateLimiter();
 
 // Health check endpoints: /alive (liveness) and /health (readiness)
 app.MapHealthChecks("/alive", new HealthCheckOptions

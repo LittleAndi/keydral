@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Keydral.API.Models;
 using Keydral.API.Middleware;
+using Keydral.API.RateLimiting;
 using Keydral.Storage.Repositories;
 
 namespace Keydral.API.Endpoints;
@@ -20,11 +21,13 @@ public static class AuditLogEndpoints
 
         group.MapGet("/", ListAuditLogs)
             .WithName("ListAuditLogs")
-            .WithDescription("List audit log entries with optional filtering");
+            .WithDescription("List audit log entries with optional filtering")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.GetAuditLogsPolicy));
 
         group.MapGet("/{id}", GetAuditLog)
             .WithName("GetAuditLog")
-            .WithDescription("Get a specific audit log entry by ID");
+            .WithDescription("Get a specific audit log entry by ID")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.GetAuditLogsPolicy));
     }
 
     /// <summary>
