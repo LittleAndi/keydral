@@ -10,7 +10,8 @@ public class LoginCommandTests
         var now = new DateTimeOffset(2026, 5, 13, 22, 0, 0, TimeSpan.Zero);
         var claims = new Dictionary<string, object>
         {
-            ["exp"] = now.AddMinutes(3).ToUnixTimeSeconds().ToString()
+            ["exp"] = now.AddMinutes(3).ToUnixTimeSeconds()
+                .ToString(System.Globalization.CultureInfo.InvariantCulture)
         };
 
         var warning = LoginCommand.GetTokenLifetimeWarning(claims, now);
