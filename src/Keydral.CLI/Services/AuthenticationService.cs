@@ -120,7 +120,8 @@ public class AuthenticationService
     {
         var tokenUrl = $"{_keycloakUrl}/realms/{_realm}/protocol/openid-connect/token";
         var startTime = DateTime.UtcNow;
-        var interval = initialInterval; // Poll interval in seconds
+        const int DefaultInterval = 5; // RFC 8628 default when interval is omitted
+        var interval = initialInterval > 0 ? initialInterval : DefaultInterval; // Poll interval in seconds
         const int MaxInterval = 30; // RFC 8628 recommended max interval
         const int BackoffIncrement = 5; // RFC 8628 slow_down increment
 
