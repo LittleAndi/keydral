@@ -95,6 +95,10 @@ APIs and features may change as the architecture evolves.
 
 Contributions, ideas, and discussions are welcome.
 
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for coding conventions, development rules, and the full contributor guide.
+
+If you are working with AI coding agents (GitHub Copilot coding agent, Copilot agent mode, etc.), follow the repo-specific multi-agent workflow in [docs/multi-agent-workflow.md](./docs/multi-agent-workflow.md). That document covers agent ownership, branch conventions, copy-paste prompt templates, and a step-by-step execution playbook.
+
 ---
 
 ## 📜 License
