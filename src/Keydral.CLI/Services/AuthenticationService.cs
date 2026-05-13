@@ -61,17 +61,18 @@ internal class OAuth2ErrorResponse
 /// </summary>
 public class AuthenticationService
 {
+    private static readonly HttpClient SharedHttpClient = new();
     private readonly string _keycloakUrl;
     private readonly string _realm;
     private readonly string _clientId;
     private readonly HttpClient _httpClient;
 
-    public AuthenticationService(string keycloakUrl, string realm, string clientId)
+    public AuthenticationService(string keycloakUrl, string realm, string clientId, HttpClient? httpClient = null)
     {
         _keycloakUrl = keycloakUrl.TrimEnd('/');
         _realm = realm;
         _clientId = clientId;
-        _httpClient = new HttpClient();
+        _httpClient = httpClient ?? SharedHttpClient;
     }
 
     /// <summary>
