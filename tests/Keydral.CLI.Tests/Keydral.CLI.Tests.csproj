@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Keydral.Core\Keydral.Core.csproj" />
+    <ProjectReference Include="..\..\src\Keydral.CLI\Keydral.CLI.csproj" />
   </ItemGroup>
 
 </Project>
