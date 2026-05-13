@@ -21,6 +21,10 @@ public static class EncryptionServiceCollectionExtensions
         var options = new EncryptionOptions();
         configuration.GetSection("Encryption").Bind(options);
 
+        // Validate algorithm eagerly at startup — this has no I/O dependency and should
+        // fail immediately so misconfiguration is caught before the first request.
+        options.ValidateAlgorithm();
+
         services.AddSingleton(options);
 
         // Register master key provider based on configuration.
@@ -63,7 +67,7 @@ public static class EncryptionServiceCollectionExtensions
         options.Validate();
 
         services.AddSingleton(options);
-        services.AddSingleton(masterKeyProvider);
+        services.AddSingleton<IMasterKeyProvider>(masterKeyProvider);
         services.AddSingleton<IEncryptionService>(new EnvelopeEncryptionService(masterKeyProvider, options));
 
         return services;

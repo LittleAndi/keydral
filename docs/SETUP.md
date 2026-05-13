@@ -500,12 +500,12 @@ The `Encryption` section in `appsettings.json` controls envelope encryption beha
 
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
-| `Algorithm` | `string` | `"AES-256-GCM"` | Encryption algorithm. **Only `"AES-256-GCM"` is supported.** Setting any other value causes an `InvalidOperationException` when the encryption services are first resolved or used. |
+| `Algorithm` | `string` | `"AES-256-GCM"` | Encryption algorithm. **Only `"AES-256-GCM"` is supported.** Setting any other value causes an `InvalidOperationException` **at startup** during service registration. |
 | `Provider` | `string` | `"file"` | Master key provider. Valid values: `"file"` (local file), `"kubernetes"` (Kubernetes Secret). |
 | `MasterKeyFilePath` | `string` | *(none)* | Path to the base64-encoded master key file. **Required** when `Provider` is `"file"`. |
 | `SecureWipeEnabled` | `bool` | `true` | When `true`, key material is overwritten with random bytes before zeroing (slower, more secure). When `false`, only a cryptographic zero-wipe is performed. |
 
-> **Important:** Setting `Algorithm` to any value other than `"AES-256-GCM"` — for example `"AES-128-GCM"` or `"ChaCha20"` — will cause Keydral to throw a clear `InvalidOperationException` when the encryption services are first resolved or used. No other algorithms are implemented or planned.
+> **Important:** Setting `Algorithm` to any value other than `"AES-256-GCM"` — for example `"AES-128-GCM"` or `"ChaCha20"` — will cause Keydral to throw a clear `InvalidOperationException` **at startup** during service registration. No other algorithms are implemented or planned.
 
 ### appsettings.Development.json
 

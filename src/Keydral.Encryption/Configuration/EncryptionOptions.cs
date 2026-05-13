@@ -31,10 +31,27 @@ public class EncryptionOptions
     public bool SecureWipeEnabled { get; set; } = true;
 
     /// <summary>
+    /// Validate the algorithm setting only.
+    /// This is safe to call eagerly during service registration because it has no I/O dependencies.
+    /// </summary>
+    public void ValidateAlgorithm()
+    {
+        if (Algorithm != "AES-256-GCM")
+        {
+            throw new InvalidOperationException(
+                $"Unsupported algorithm: '{Algorithm}'. " +
+                "The only supported algorithm is 'AES-256-GCM'. " +
+                "Set Encryption:Algorithm to 'AES-256-GCM' or remove it to use the default.");
+        }
+    }
+
+    /// <summary>
     /// Validate configuration.
     /// </summary>
     public void Validate()
     {
+        ValidateAlgorithm();
+
         switch (Provider.ToLowerInvariant())
         {
             case "file":
@@ -55,14 +72,6 @@ public class EncryptionOptions
                 throw new InvalidOperationException(
                     $"Unknown encryption provider: {Provider}. " +
                     "Use 'file', 'kubernetes', or 'none'");
-        }
-
-        if (Algorithm != "AES-256-GCM")
-        {
-            throw new InvalidOperationException(
-                $"Unsupported algorithm: '{Algorithm}'. " +
-                "The only supported algorithm is 'AES-256-GCM'. " +
-                "Set Encryption:Algorithm to 'AES-256-GCM' or remove it to use the default.");
         }
     }
 }

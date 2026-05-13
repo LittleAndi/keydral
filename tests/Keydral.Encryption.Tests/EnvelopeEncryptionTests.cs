@@ -1,6 +1,9 @@
 using Keydral.Encryption.Models;
 using Keydral.Encryption.Configuration;
+using Keydral.Encryption.Extensions;
 using Keydral.Encryption.Providers;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Keydral.Encryption.Tests;
 
@@ -159,6 +162,26 @@ public class EnvelopeEncryptionTests
         // Act & Assert
         var ex = Assert.Throws<InvalidOperationException>(
             () => new EnvelopeEncryptionService(_masterKeyProvider, options));
+        Assert.Contains("AES-128-GCM", ex.Message);
+        Assert.Contains("AES-256-GCM", ex.Message);
+    }
+
+    [Fact]
+    public void AddEncryption_WithUnsupportedAlgorithm_ShouldThrowAtRegistration()
+    {
+        // Arrange - build an IConfiguration with an unsupported algorithm
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Encryption:Algorithm"] = "AES-128-GCM",
+                ["Encryption:Provider"] = "none",
+            })
+            .Build();
+        var services = new ServiceCollection();
+
+        // Act & Assert - must throw during AddEncryption, not during first resolution
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => services.AddEncryption(config));
         Assert.Contains("AES-128-GCM", ex.Message);
         Assert.Contains("AES-256-GCM", ex.Message);
     }
