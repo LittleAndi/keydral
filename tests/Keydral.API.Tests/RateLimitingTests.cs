@@ -238,7 +238,7 @@ internal sealed class RateLimitingTestFactory : WebApplicationFactory<Program>
         {
             opts.RequireHttpsMetadata = false;
             opts.Authority = null;        // disable OIDC discovery
-            opts.MetadataAddress = null;  // no metadata URL to fetch
+            opts.MetadataAddress = null!;  // no metadata URL to fetch
             opts.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,
