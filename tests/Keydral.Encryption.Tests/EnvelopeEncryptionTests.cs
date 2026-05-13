@@ -1,5 +1,9 @@
 using Keydral.Encryption.Models;
+using Keydral.Encryption.Configuration;
+using Keydral.Encryption.Extensions;
 using Keydral.Encryption.Providers;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Keydral.Encryption.Tests;
 
@@ -15,7 +19,7 @@ public class EnvelopeEncryptionTests
     {
         // Create a test master key provider with a fixed key
         _masterKeyProvider = new TestMasterKeyProvider();
-        _encryptionService = new EnvelopeEncryptionService(_masterKeyProvider);
+        _encryptionService = new EnvelopeEncryptionService(_masterKeyProvider, new EncryptionOptions());
     }
 
     [Fact]
@@ -147,6 +151,55 @@ public class EnvelopeEncryptionTests
     {
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>(() => _encryptionService.DecryptAsync(null!));
+    }
+
+    [Fact]
+    public void Constructor_WithUnsupportedAlgorithm_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        var options = new EncryptionOptions { Algorithm = "AES-128-GCM" };
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => new EnvelopeEncryptionService(_masterKeyProvider, options));
+        Assert.Contains("AES-128-GCM", ex.Message);
+        Assert.Contains("AES-256-GCM", ex.Message);
+    }
+
+    [Fact]
+    public void AddEncryption_WithUnsupportedAlgorithm_ShouldThrowAtRegistration()
+    {
+        // Arrange - build an IConfiguration with an unsupported algorithm
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Encryption:Algorithm"] = "AES-128-GCM",
+                ["Encryption:Provider"] = "none",
+            })
+            .Build();
+        var services = new ServiceCollection();
+
+        // Act & Assert - must throw during AddEncryption, not during first resolution
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => services.AddEncryption(config));
+        Assert.Contains("AES-128-GCM", ex.Message);
+        Assert.Contains("AES-256-GCM", ex.Message);
+    }
+
+    [Fact]
+    public async Task EncryptDecrypt_WithSecureWipeDisabled_ShouldRoundTrip()
+    {
+        // Arrange
+        var options = new EncryptionOptions { SecureWipeEnabled = false };
+        var service = new EnvelopeEncryptionService(_masterKeyProvider, options);
+        var plaintext = "secret-no-secure-wipe";
+
+        // Act
+        var encrypted = await service.EncryptAsync(plaintext);
+        var decrypted = await service.DecryptAsync(encrypted);
+
+        // Assert
+        Assert.Equal(plaintext, decrypted);
     }
 }
 
