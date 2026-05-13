@@ -45,18 +45,39 @@ public static class SearchEndpoints
             var (secretRequest, auditRequest) = SearchQueryParser.Parse(query, pageNumber, pageSize);
             var response = new SearchResultsResponse();
 
-            var secrets = await secretRepository.GetActiveSecretsAsync();
-            var allowedSecrets = await FilterReadableSecretsAsync(secrets, userContext.Id, policyEngine);
-            var filteredSecrets = SearchFilterService.FilterSecrets(allowedSecrets, secretRequest)
-                .Select(SearchFilterService.ToSecretListItem);
+            var filteredSecretCandidates = await secretRepository.GetSecretsFilteredAsync(
+                secretRequest.Query,
+                secretRequest.NamePattern,
+                secretRequest.Tags,
+                secretRequest.CreatedAfter,
+                secretRequest.CreatedBefore,
+                secretRequest.UpdatedAfter,
+                secretRequest.UpdatedBefore,
+                secretRequest.CreatedBy);
+            var allowedSecrets = await FilterReadableSecretsAsync(filteredSecretCandidates, userContext.Id, policyEngine);
+            var filteredSecrets = allowedSecrets.Select(SearchFilterService.ToSecretListItem);
             response.Secrets = SearchFilterService.Paginate(filteredSecrets, pageNumber, pageSize);
 
             if (userContext.HasRole("secret-admin"))
             {
-                var auditLogs = await auditLogRepository.GetAllAsync();
-                var filteredAuditLogs = SearchFilterService.FilterAuditLogs(auditLogs, auditRequest)
-                    .Select(SearchFilterService.ToAuditLogResponse);
-                response.AuditLogs = SearchFilterService.Paginate(filteredAuditLogs, pageNumber, pageSize);
+                var (auditLogs, totalCount) = await auditLogRepository.GetAuditLogsFilteredAsync(
+                    auditRequest.Query,
+                    auditRequest.Actor,
+                    auditRequest.Action,
+                    auditRequest.ResourceType,
+                    auditRequest.ResourceId,
+                    auditRequest.Result,
+                    auditRequest.FromDate,
+                    auditRequest.ToDate,
+                    pageNumber,
+                    pageSize);
+                response.AuditLogs = new PaginatedResponse<AuditLogResponse>
+                {
+                    Items = auditLogs.Select(SearchFilterService.ToAuditLogResponse).ToList(),
+                    PageNumber = Math.Max(1, pageNumber),
+                    PageSize = Math.Clamp(pageSize, 1, 200),
+                    TotalCount = totalCount
+                };
             }
 
             return TypedResults.Ok(response);

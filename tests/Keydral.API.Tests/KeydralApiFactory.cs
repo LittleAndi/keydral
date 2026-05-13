@@ -10,7 +10,6 @@ using Keydral.Encryption;
 using Keydral.Encryption.Extensions;
 using Keydral.Encryption.Configuration;
 using Keydral.API.Tests.Utilities;
-using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Keydral.Core.Authorization;
@@ -147,7 +146,8 @@ public class KeydralApiFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// Create an HTTP client with Bearer token for authenticated requests.
+    /// Create an HTTP client authenticated through test-only headers consumed by the
+    /// test auth handler and startup filter.
     /// </summary>
     public HttpClient CreateAuthenticatedClient(string userId = "test-user", params string[] roles)
     {

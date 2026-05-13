@@ -22,10 +22,10 @@ public class SecretDto
     [JsonPropertyName("tags")]
     public Dictionary<string, string>? Tags { get; set; }
 
-    [JsonPropertyName("created_at")]
+    [JsonPropertyName("createdAt")]
     public DateTime CreatedAt { get; set; }
 
-    [JsonPropertyName("created_by")]
+    [JsonPropertyName("createdBy")]
     public string? CreatedBy { get; set; }
 }
 
@@ -40,10 +40,10 @@ public class AuditLogListItemDto
     [JsonPropertyName("actor")]
     public string Actor { get; set; } = string.Empty;
 
-    [JsonPropertyName("resource_type")]
+    [JsonPropertyName("resourceType")]
     public string ResourceType { get; set; } = string.Empty;
 
-    [JsonPropertyName("resource_id")]
+    [JsonPropertyName("resourceId")]
     public string ResourceId { get; set; } = string.Empty;
 
     [JsonPropertyName("result")]
@@ -67,10 +67,10 @@ public class SecretListItemDto
     [JsonPropertyName("description")]
     public string? Description { get; set; }
 
-    [JsonPropertyName("updated_at")]
+    [JsonPropertyName("updatedAt")]
     public DateTime UpdatedAt { get; set; }
 
-    [JsonPropertyName("created_by")]
+    [JsonPropertyName("createdBy")]
     public string? CreatedBy { get; set; }
 
     [JsonPropertyName("tags")]
@@ -85,16 +85,16 @@ public class PaginatedResponse<T>
     [JsonPropertyName("items")]
     public List<T> Items { get; set; } = new();
 
-    [JsonPropertyName("page_number")]
+    [JsonPropertyName("pageNumber")]
     public int PageNumber { get; set; }
 
-    [JsonPropertyName("page_size")]
+    [JsonPropertyName("pageSize")]
     public int PageSize { get; set; }
 
-    [JsonPropertyName("total_count")]
+    [JsonPropertyName("totalCount")]
     public int TotalCount { get; set; }
 
-    [JsonPropertyName("has_next_page")]
+    [JsonPropertyName("hasNextPage")]
     public bool HasNextPage { get; set; }
 }
 

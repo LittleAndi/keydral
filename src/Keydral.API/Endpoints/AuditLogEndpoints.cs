@@ -46,7 +46,7 @@ public static class AuditLogEndpoints
         [FromQuery] string? actor = null,
         [FromQuery] string? action = null,
         [FromQuery(Name = "resource-type")] string? resourceType = null,
-        [FromQuery] string? resourceId = null,
+        [FromQuery(Name = "resource-id")] string? resourceId = null,
         [FromQuery] string? result = null,
         [FromQuery(Name = "from-date")] DateTime? fromDate = null,
         [FromQuery(Name = "to-date")] DateTime? toDate = null,
@@ -62,24 +62,24 @@ public static class AuditLogEndpoints
 
         try
         {
-            var logs = await auditLogRepository.GetAllAsync();
-            var searchRequest = new AuditLogSearchRequest
-            {
-                Query = query,
-                Actor = actor,
-                Action = action,
-                ResourceType = resourceType,
-                ResourceId = resourceId,
-                Result = result,
-                FromDate = fromDate,
-                ToDate = toDate,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
-            var response = SearchFilterService.Paginate(
-                SearchFilterService.FilterAuditLogs(logs, searchRequest).Select(SearchFilterService.ToAuditLogResponse),
+            var (logs, totalCount) = await auditLogRepository.GetAuditLogsFilteredAsync(
+                query,
+                actor,
+                action,
+                resourceType,
+                resourceId,
+                result,
+                fromDate,
+                toDate,
                 pageNumber,
                 pageSize);
+            var response = new PaginatedResponse<AuditLogResponse>
+            {
+                Items = logs.Select(SearchFilterService.ToAuditLogResponse).ToList(),
+                PageNumber = Math.Max(1, pageNumber),
+                PageSize = Math.Clamp(pageSize, 1, 200),
+                TotalCount = totalCount
+            };
 
             return TypedResults.Ok(response);
         }
@@ -121,24 +121,24 @@ public static class AuditLogEndpoints
 
         try
         {
-            var logs = await auditLogRepository.GetAllAsync();
-            var searchRequest = new AuditLogSearchRequest
-            {
-                Query = query,
-                Actor = actor,
-                Action = action,
-                ResourceType = resourceType,
-                ResourceId = resourceId,
-                Result = result,
-                FromDate = fromDate,
-                ToDate = toDate,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
-            var response = SearchFilterService.Paginate(
-                SearchFilterService.FilterAuditLogs(logs, searchRequest).Select(SearchFilterService.ToAuditLogResponse),
+            var (logs, totalCount) = await auditLogRepository.GetAuditLogsFilteredAsync(
+                query,
+                actor,
+                action,
+                resourceType,
+                resourceId,
+                result,
+                fromDate,
+                toDate,
                 pageNumber,
                 pageSize);
+            var response = new PaginatedResponse<AuditLogResponse>
+            {
+                Items = logs.Select(SearchFilterService.ToAuditLogResponse).ToList(),
+                PageNumber = Math.Max(1, pageNumber),
+                PageSize = Math.Clamp(pageSize, 1, 200),
+                TotalCount = totalCount
+            };
 
             return TypedResults.Ok(response);
         }

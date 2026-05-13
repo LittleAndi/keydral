@@ -134,22 +134,54 @@ public class AuditLogRepository : Repository<AuditLog>, IAuditLogRepository
     /// Get filtered and paginated audit logs.
     /// </summary>
     public async Task<(IEnumerable<AuditLog> logs, int totalCount)> GetAuditLogsFilteredAsync(
-        string? actor, string? action, string? resourceId, string? result,
+        string? query,
+        string? actor,
+        string? action,
+        string? resourceType,
+        string? resourceId,
+        string? result,
+        DateTime? fromDate,
+        DateTime? toDate,
         int pageNumber, int pageSize, CancellationToken cancellationToken = default)
     {
-        var query = Context.AuditLogs.AsQueryable();
+        var auditLogQuery = Context.AuditLogs
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var term in terms)
+            {
+                var searchPattern = BuildContainsPattern(term);
+                auditLogQuery = auditLogQuery.Where(log =>
+                    EF.Functions.ILike(log.Actor, searchPattern)
+                    || EF.Functions.ILike(log.Action, searchPattern)
+                    || EF.Functions.ILike(log.ResourceType, searchPattern)
+                    || EF.Functions.ILike(log.ResourceId, searchPattern)
+                    || EF.Functions.ILike(log.ResourceName, searchPattern)
+                    || (log.ErrorMessage != null && EF.Functions.ILike(log.ErrorMessage, searchPattern))
+                    || (log.Metadata != null && EF.Functions.ILike(log.Metadata, searchPattern)));
+            }
+        }
 
         if (!string.IsNullOrWhiteSpace(actor))
-            query = query.Where(a => a.Actor.Contains(actor));
+            auditLogQuery = auditLogQuery.Where(log => EF.Functions.ILike(log.Actor, BuildContainsPattern(actor)));
         if (!string.IsNullOrWhiteSpace(action))
-            query = query.Where(a => a.Action == action);
+            auditLogQuery = auditLogQuery.Where(log => log.Action == action);
+        if (!string.IsNullOrWhiteSpace(resourceType))
+            auditLogQuery = auditLogQuery.Where(log => log.ResourceType == resourceType);
         if (!string.IsNullOrWhiteSpace(resourceId))
-            query = query.Where(a => a.ResourceId == resourceId);
+            auditLogQuery = auditLogQuery.Where(log => EF.Functions.ILike(log.ResourceId, BuildContainsPattern(resourceId)));
         if (!string.IsNullOrWhiteSpace(result))
-            query = query.Where(a => a.Result == result);
+            auditLogQuery = auditLogQuery.Where(log => log.Result == result);
+        if (fromDate.HasValue)
+            auditLogQuery = auditLogQuery.Where(log => log.Timestamp >= fromDate.Value);
+        if (toDate.HasValue)
+            auditLogQuery = auditLogQuery.Where(log => log.Timestamp <= toDate.Value);
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var logs = await query
+        var totalCount = await auditLogQuery.CountAsync(cancellationToken);
+        var logs = await auditLogQuery
             .OrderByDescending(a => a.Timestamp)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
@@ -164,5 +196,18 @@ public class AuditLogRepository : Repository<AuditLog>, IAuditLogRepository
     public async Task<AuditLog> AddAuditLogAsync(AuditLog log, CancellationToken cancellationToken = default)
     {
         return await AddAsync(log, cancellationToken);
+    }
+
+    private static string BuildContainsPattern(string value)
+    {
+        return $"%{EscapeLikeFragment(value.Trim())}%";
+    }
+
+    private static string EscapeLikeFragment(string value)
+    {
+        return value
+            .Replace(@"\", @"\\", StringComparison.Ordinal)
+            .Replace("%", @"\%", StringComparison.Ordinal)
+            .Replace("_", @"\_", StringComparison.Ordinal);
     }
 }

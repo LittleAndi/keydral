@@ -19,7 +19,16 @@ public class SearchEndpointsTests
     {
         using var factory = new KeydralApiFactory();
         factory.MockSecretRepository
-            .Setup(repository => repository.GetActiveSecretsAsync(It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetSecretsFilteredAsync(
+                "postgres",
+                null,
+                It.Is<IReadOnlyCollection<string>>(tags => tags.Count == 1 && tags.Contains("production")),
+                null,
+                null,
+                null,
+                null,
+                "alice@example.com",
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(
             [
                 new Secret
@@ -71,30 +80,32 @@ public class SearchEndpointsTests
     {
         using var factory = new KeydralApiFactory();
         factory.MockAuditLogRepository
-            .Setup(repository => repository.GetAllAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(
-            [
-                new AuditLog
-                {
-                    Id = Guid.NewGuid(),
-                    Action = "CREATE",
-                    Actor = "alice@example.com",
-                    ResourceType = "Secret",
-                    ResourceId = "db-password",
-                    Result = "SUCCESS",
-                    Timestamp = new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc)
-                },
-                new AuditLog
-                {
-                    Id = Guid.NewGuid(),
-                    Action = "DELETE",
-                    Actor = "bob@example.com",
-                    ResourceType = "Secret",
-                    ResourceId = "db-password",
-                    Result = "FAILED",
-                    Timestamp = new DateTime(2026, 2, 15, 0, 0, 0, DateTimeKind.Utc)
-                }
-            ]);
+            .Setup(repository => repository.GetAuditLogsFilteredAsync(
+                null,
+                null,
+                "CREATE",
+                null,
+                null,
+                "SUCCESS",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc),
+                1,
+                50,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((
+                [
+                    new AuditLog
+                    {
+                        Id = Guid.NewGuid(),
+                        Action = "CREATE",
+                        Actor = "alice@example.com",
+                        ResourceType = "Secret",
+                        ResourceId = "db-password",
+                        Result = "SUCCESS",
+                        Timestamp = new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc)
+                    }
+                ],
+                1));
 
         using var client = factory.CreateAuthenticatedClient("admin-user", "secret-admin");
 
@@ -116,7 +127,16 @@ public class SearchEndpointsTests
     {
         using var factory = new KeydralApiFactory();
         factory.MockSecretRepository
-            .Setup(repository => repository.GetActiveSecretsAsync(It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetSecretsFilteredAsync(
+                null,
+                "*password",
+                It.Is<IReadOnlyCollection<string>>(tags => tags.Count == 1 && tags.Contains("production")),
+                null,
+                null,
+                null,
+                null,
+                null,
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(
             [
                 new Secret
@@ -129,20 +149,32 @@ public class SearchEndpointsTests
                 }
             ]);
         factory.MockAuditLogRepository
-            .Setup(repository => repository.GetAllAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(
-            [
-                new AuditLog
-                {
-                    Id = Guid.NewGuid(),
-                    Action = "CREATE",
-                    Actor = "alice@example.com",
-                    ResourceType = "Secret",
-                    ResourceId = "db-password",
-                    Result = "SUCCESS",
-                    Timestamp = new DateTime(2026, 1, 21, 0, 0, 0, DateTimeKind.Utc)
-                }
-            ]);
+            .Setup(repository => repository.GetAuditLogsFilteredAsync(
+                null,
+                null,
+                "CREATE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                50,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((
+                [
+                    new AuditLog
+                    {
+                        Id = Guid.NewGuid(),
+                        Action = "CREATE",
+                        Actor = "alice@example.com",
+                        ResourceType = "Secret",
+                        ResourceId = "db-password",
+                        Result = "SUCCESS",
+                        Timestamp = new DateTime(2026, 1, 21, 0, 0, 0, DateTimeKind.Utc)
+                    }
+                ],
+                1));
 
         using var client = factory.CreateAuthenticatedClient("admin-user", "secret-admin");
         var query = Uri.EscapeDataString("name:\"*password\" AND tags:production AND action:CREATE");

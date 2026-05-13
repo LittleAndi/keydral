@@ -55,18 +55,6 @@ public sealed class AuditLogSearchRequest
 }
 
 /// <summary>
-/// Request contract for the query DSL endpoint.
-/// </summary>
-public sealed class DslSearchRequest
-{
-    public string Query { get; set; } = string.Empty;
-
-    public int PageNumber { get; set; } = 1;
-
-    public int PageSize { get; set; } = 50;
-}
-
-/// <summary>
 /// Combined search response for the query DSL endpoint.
 /// </summary>
 public sealed class SearchResultsResponse

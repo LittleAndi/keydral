@@ -72,7 +72,9 @@ public static class SecretEndpoints
         HttpContext context,
         ISecretRepository secretRepository,
         IRbacPolicyEngine policyEngine,
-        ILogger<Program> logger)
+        ILogger<Program> logger,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 50)
     {
         var userContext = context.GetUserContext();
         if (userContext == null)
@@ -85,8 +87,8 @@ public static class SecretEndpoints
             var allowedSecrets = await SearchEndpoints.FilterReadableSecretsAsync(secrets, userContext.Id, policyEngine);
             var response = SearchFilterService.Paginate(
                 allowedSecrets.Select(SearchFilterService.ToSecretListItem),
-                pageNumber: 1,
-                pageSize: Math.Max(1, allowedSecrets.Count));
+                pageNumber,
+                pageSize);
 
             return TypedResults.Ok(response);
         }
@@ -123,8 +125,6 @@ public static class SecretEndpoints
 
         try
         {
-            var secrets = await secretRepository.GetActiveSecretsAsync();
-            var allowedSecrets = await SearchEndpoints.FilterReadableSecretsAsync(secrets, userContext.Id, policyEngine);
             var searchRequest = new SecretSearchRequest
             {
                 Query = query,
@@ -138,8 +138,17 @@ public static class SecretEndpoints
                 PageSize = pageSize
             };
 
-            var filteredSecrets = SearchFilterService.FilterSecrets(allowedSecrets, searchRequest)
-                .Select(SearchFilterService.ToSecretListItem);
+            var filteredSecretCandidates = await secretRepository.GetSecretsFilteredAsync(
+                searchRequest.Query,
+                searchRequest.NamePattern,
+                searchRequest.Tags,
+                searchRequest.CreatedAfter,
+                searchRequest.CreatedBefore,
+                searchRequest.UpdatedAfter,
+                searchRequest.UpdatedBefore,
+                searchRequest.CreatedBy);
+            var allowedSecrets = await SearchEndpoints.FilterReadableSecretsAsync(filteredSecretCandidates, userContext.Id, policyEngine);
+            var filteredSecrets = allowedSecrets.Select(SearchFilterService.ToSecretListItem);
 
             return TypedResults.Ok(SearchFilterService.Paginate(filteredSecrets, pageNumber, pageSize));
         }

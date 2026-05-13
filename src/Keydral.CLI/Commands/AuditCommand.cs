@@ -1,6 +1,7 @@
 using Spectre.Console;
 using Keydral.CLI.Config;
 using Keydral.CLI.Services;
+using System.Globalization;
 
 namespace Keydral.CLI.Commands;
 
@@ -146,9 +147,9 @@ public class AuditCommand
 
     private static DateTime ParseDate(string value, string optionName)
     {
-        if (!DateTime.TryParse(value, out var parsed))
+        if (!DateTime.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
         {
-            throw new InvalidOperationException($"{optionName} must be a valid date");
+            throw new InvalidOperationException($"{optionName} must be a valid date in yyyy-MM-dd format");
         }
 
         return parsed;
