@@ -90,10 +90,10 @@ public class AuthenticationService
         request.Content = content;
 
         var response = await _httpClient.SendAsync(request);
-        
+
         if (!response.IsSuccessStatusCode)
         {
-            throw new OAuth2Exception("device_request_failed", 
+            throw new OAuth2Exception("device_request_failed",
                 $"Failed to initiate device flow: {response.StatusCode}");
         }
 
