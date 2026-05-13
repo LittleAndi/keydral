@@ -178,7 +178,7 @@ public class AuthenticationService
 
                             // RFC 8628 slow_down: server is busy, increase polling interval
                             case "slow_down":
-                                interval = Math.Min(interval + BackoffIncrement, MaxInterval);
+                                interval += BackoffIncrement;
                                 break;
 
                             // RFC 8628 authorization_pending: user hasn't authorized yet, keep polling
