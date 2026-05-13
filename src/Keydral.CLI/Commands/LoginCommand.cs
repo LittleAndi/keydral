@@ -10,6 +10,7 @@ namespace Keydral.CLI.Commands;
 public class LoginCommand
 {
     private readonly ConfigManager _configManager;
+    private const int PollingStatusRefreshMilliseconds = 200;
 
     public LoginCommand(ConfigManager configManager)
     {
@@ -36,10 +37,7 @@ public class LoginCommand
             AnsiConsole.MarkupLine($"[yellow]Visit:[/] {deviceAuth.VerificationUrl}");
             AnsiConsole.MarkupLine("");
 
-            AnsiConsole.MarkupLine("[dim]Waiting for authorization (timeout in " +
-                deviceAuth.ExpiresIn + " seconds)...[/]");
-
-            var tokenResponse = await authService.PollForTokenAsync(deviceAuth.DeviceCode, deviceAuth.ExpiresIn, deviceAuth.Interval);
+            var tokenResponse = await WaitForAuthorizationAsync(authService, deviceAuth);
 
             // Extract user info from token
             var claims = authService.ExtractClaims(tokenResponse.AccessToken);
@@ -87,4 +85,54 @@ public class LoginCommand
             Environment.Exit(1);
         }
     }
+
+    private static async Task<TokenResponse> WaitForAuthorizationAsync(
+        AuthenticationService authService,
+        DeviceAuthorizationResponse deviceAuth)
+    {
+        var statusLock = new object();
+        var currentStatus = "Waiting for authorization...";
+        var expiresAt = DateTimeOffset.UtcNow.AddSeconds(deviceAuth.ExpiresIn);
+
+        return await AnsiConsole.Status()
+            .Spinner(Spinner.Known.Dots)
+            .StartAsync(BuildPollingStatus(GetCurrentStatus(), GetSecondsRemaining(expiresAt)), async ctx =>
+            {
+                var pollingTask = authService.PollForTokenAsync(
+                    deviceAuth.DeviceCode,
+                    deviceAuth.ExpiresIn,
+                    deviceAuth.Interval,
+                    update =>
+                    {
+                        lock (statusLock)
+                        {
+                            currentStatus = update.StatusMessage;
+                        }
+                    });
+
+                while (!pollingTask.IsCompleted)
+                {
+                    ctx.Status(BuildPollingStatus(GetCurrentStatus(), GetSecondsRemaining(expiresAt)));
+                    await Task.WhenAny(
+                        pollingTask,
+                        Task.Delay(PollingStatusRefreshMilliseconds));
+                }
+
+                return await pollingTask;
+            });
+
+        string GetCurrentStatus()
+        {
+            lock (statusLock)
+            {
+                return currentStatus;
+            }
+        }
+    }
+
+    private static string BuildPollingStatus(string status, int secondsRemaining) =>
+        $"{Markup.Escape(status)} [dim](expires in {secondsRemaining}s)[/]";
+
+    private static int GetSecondsRemaining(DateTimeOffset expiresAt) =>
+        Math.Max(0, (int)Math.Ceiling((expiresAt - DateTimeOffset.UtcNow).TotalSeconds));
 }
