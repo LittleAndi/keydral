@@ -135,7 +135,7 @@ public class PaginatedResponse<T>
     /// <summary>
     /// Total number of pages.
     /// </summary>
-    public int TotalPages => (TotalCount + PageSize - 1) / PageSize;
+    public int TotalPages => PageSize > 0 ? (TotalCount + PageSize - 1) / PageSize : 0;
 
     /// <summary>
     /// Whether there are more pages.

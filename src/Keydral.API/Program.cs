@@ -113,11 +113,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Rate limit headers middleware must run before UseRateLimiter so that the
-// OnStarting callback is registered before the rate limiter processes the request.
-app.UseRateLimitHeaders();
-app.UseRateLimiter();
-
 // Audit logging middleware (before authentication for complete tracing)
 app.UseAuditLogging();
 
@@ -125,6 +120,12 @@ app.UseAuditLogging();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseUserContext();
+
+// Rate limiting after authentication so that the per-user partition key resolves
+// the authenticated identity (ClaimTypes.NameIdentifier / "sub" claim).
+// Per-user quotas only work correctly when context.User is populated first.
+app.UseRateLimitHeaders();
+app.UseRateLimiter();
 
 // Health check endpoints: /alive (liveness) and /health (readiness)
 app.MapHealthChecks("/alive", new HealthCheckOptions

@@ -1,10 +1,12 @@
 using System.Net;
+using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Moq;
 using Keydral.Storage;
 using Keydral.Storage.Repositories;
@@ -27,6 +29,7 @@ public class RateLimitingTests : IAsyncLifetime
 {
     private RateLimitingTestFactory _factory = null!;
     private HttpClient _client = null!;
+    private HttpClient _authenticatedClient = null!;
 
     public async Task InitializeAsync()
     {
@@ -35,11 +38,18 @@ public class RateLimitingTests : IAsyncLifetime
         {
             AllowAutoRedirect = false
         });
+        _authenticatedClient = _factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        _authenticatedClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", TestJwtTokenFactory.CreateToken("test-user-1"));
         await Task.CompletedTask;
     }
 
     public async Task DisposeAsync()
     {
+        _authenticatedClient?.Dispose();
         _client?.Dispose();
         _factory?.Dispose();
         await Task.CompletedTask;
@@ -60,15 +70,15 @@ public class RateLimitingTests : IAsyncLifetime
     [Fact]
     public async Task GetSecrets_ExceedsLimit_Returns429()
     {
-        // Limit is set to 3 req/min in the test factory.
-        // The first 3 requests should pass (401 is fine – no auth); the 4th must be 429.
+        // Limit is set to 3 req/min in the test factory. Authenticated requests are
+        // required because the rate limiter runs after UseAuthentication.
         for (int i = 0; i < 3; i++)
         {
-            var ok = await _client.GetAsync("/api/secrets");
+            var ok = await _authenticatedClient.GetAsync("/api/secrets");
             Assert.NotEqual(HttpStatusCode.TooManyRequests, ok.StatusCode);
         }
 
-        var rejected = await _client.GetAsync("/api/secrets");
+        var rejected = await _authenticatedClient.GetAsync("/api/secrets");
         Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
     }
 
@@ -76,9 +86,9 @@ public class RateLimitingTests : IAsyncLifetime
     public async Task GetSecrets_RejectedResponse_ContainsRetryAfterHeader()
     {
         for (int i = 0; i < 3; i++)
-            await _client.GetAsync("/api/secrets");
+            await _authenticatedClient.GetAsync("/api/secrets");
 
-        var response = await _client.GetAsync("/api/secrets");
+        var response = await _authenticatedClient.GetAsync("/api/secrets");
 
         Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
         Assert.True(response.Headers.Contains("Retry-After"),
@@ -89,9 +99,9 @@ public class RateLimitingTests : IAsyncLifetime
     public async Task GetSecrets_RejectedResponse_ContainsJsonBody()
     {
         for (int i = 0; i < 3; i++)
-            await _client.GetAsync("/api/secrets");
+            await _authenticatedClient.GetAsync("/api/secrets");
 
-        var response = await _client.GetAsync("/api/secrets");
+        var response = await _authenticatedClient.GetAsync("/api/secrets");
         var body = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
@@ -104,10 +114,10 @@ public class RateLimitingTests : IAsyncLifetime
     [Fact]
     public async Task GetSecrets_SuccessfulResponse_ContainsRateLimitHeaders()
     {
-        var response = await _client.GetAsync("/api/secrets");
+        var response = await _authenticatedClient.GetAsync("/api/secrets");
 
         // Headers are populated for endpoints with an EndpointRateLimitPolicy.
-        // Status 401/403 is fine – we're only checking the headers are present.
+        // Status 200/403 is fine – we're only checking the headers are present.
         Assert.True(response.Headers.Contains("X-RateLimit-Limit"),
             "X-RateLimit-Limit must be present");
         Assert.True(response.Headers.Contains("X-RateLimit-Reset"),
@@ -117,7 +127,7 @@ public class RateLimitingTests : IAsyncLifetime
     [Fact]
     public async Task GetSecrets_SuccessfulResponse_RateLimitLimitMatchesConfig()
     {
-        var response = await _client.GetAsync("/api/secrets");
+        var response = await _authenticatedClient.GetAsync("/api/secrets");
 
         var limitHeader = response.Headers.GetValues("X-RateLimit-Limit").FirstOrDefault();
         Assert.NotNull(limitHeader);
@@ -145,14 +155,42 @@ public class RateLimitingTests : IAsyncLifetime
         //     (TestServer sets RemoteIpAddress = null -> "unknown")
         //   - sets per-user limit = 1000 (high) so only per-IP is tested
         // Without whitelist the 4th request would be 429; with whitelist it must not be.
+        // Authenticated requests are required because the rate limiter runs after auth.
         using var factory = new RateLimitingWhitelistTestFactory();
-        using var client  = factory.CreateClient();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", TestJwtTokenFactory.CreateToken("whitelist-test-user"));
 
         for (int i = 0; i < 10; i++)
         {
             var response = await client.GetAsync("/api/secrets");
             Assert.NotEqual(HttpStatusCode.TooManyRequests, response.StatusCode);
         }
+    }
+
+    // ------------------------------------------------------------------ per-user isolation
+
+    [Fact]
+    public async Task TwoAuthenticatedUsers_HaveIndependentPerUserQuotas()
+    {
+        // Exhaust user1's quota (limit = 3 in the test factory).
+        for (int i = 0; i < 3; i++)
+            await _authenticatedClient.GetAsync("/api/secrets");
+
+        // user1 must now be rate limited.
+        var user1Rejected = await _authenticatedClient.GetAsync("/api/secrets");
+        Assert.Equal(HttpStatusCode.TooManyRequests, user1Rejected.StatusCode);
+
+        // user2 has a completely separate per-user partition – must NOT be rate limited.
+        using var user2Client = _factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        user2Client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", TestJwtTokenFactory.CreateToken("test-user-2"));
+
+        var user2Response = await user2Client.GetAsync("/api/secrets");
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, user2Response.StatusCode);
     }
 }
 
@@ -179,8 +217,8 @@ internal sealed class RateLimitingTestFactory : WebApplicationFactory<Program>
             services.RemoveAll<RateLimitPolicyStore>();
             services.AddSingleton(new RateLimitPolicyStore(new Dictionary<string, RateLimitPolicyInfo>
             {
-                [RateLimitingExtensions.GetSecretsPolicy]   = new(3, 60),
-                [RateLimitingExtensions.PostSecretsPolicy]  = new(3, 60),
+                [RateLimitingExtensions.GetSecretsPolicy] = new(3, 60),
+                [RateLimitingExtensions.PostSecretsPolicy] = new(3, 60),
                 [RateLimitingExtensions.GetAuditLogsPolicy] = new(3, 60),
             }));
         });
@@ -192,11 +230,23 @@ internal sealed class RateLimitingTestFactory : WebApplicationFactory<Program>
         var dbCtx = services.FirstOrDefault(d => d.ServiceType == typeof(ApplicationDbContext));
         if (dbCtx != null) services.Remove(dbCtx);
 
-        // Configure JWT Bearer for testing (no real OIDC server needed)
+        // Configure JWT Bearer for testing: disable OIDC discovery and validate tokens
+        // with a local symmetric signing key (no Keycloak server required).
+        // Must use Configure (not PostConfigure) so that Authority and MetadataAddress are
+        // cleared BEFORE the built-in JwtBearerPostConfigureOptions validates them.
         services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, opts =>
         {
             opts.RequireHttpsMetadata = false;
-            opts.Authority = "http://localhost:8080/realms/keydral";
+            opts.Authority = null;        // disable OIDC discovery
+            opts.MetadataAddress = null;  // no metadata URL to fetch
+            opts.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = TestJwtTokenFactory.SigningKey,
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false,
+            };
         });
 
         // Replace encryption with test provider
@@ -240,8 +290,8 @@ internal sealed class RateLimitingWhitelistTestFactory : WebApplicationFactory<P
             services.RemoveAll<RateLimitPolicyStore>();
             services.AddSingleton(new RateLimitPolicyStore(new Dictionary<string, RateLimitPolicyInfo>
             {
-                [RateLimitingExtensions.GetSecretsPolicy]   = new(1000, 60),
-                [RateLimitingExtensions.PostSecretsPolicy]  = new(1000, 60),
+                [RateLimitingExtensions.GetSecretsPolicy] = new(1000, 60),
+                [RateLimitingExtensions.PostSecretsPolicy] = new(1000, 60),
                 [RateLimitingExtensions.GetAuditLogsPolicy] = new(1000, 60),
             }));
 
