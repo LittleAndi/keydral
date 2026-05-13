@@ -87,8 +87,8 @@ public class SearchEndpointsTests
                 null,
                 null,
                 "SUCCESS",
-                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc),
+                It.Is<DateTime?>(value => value.HasValue && value.Value.Kind == DateTimeKind.Utc && value.Value == new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
+                It.Is<DateTime?>(value => value.HasValue && value.Value.Kind == DateTimeKind.Utc && value.Value.Date == new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc).Date),
                 1,
                 50,
                 It.IsAny<CancellationToken>()))

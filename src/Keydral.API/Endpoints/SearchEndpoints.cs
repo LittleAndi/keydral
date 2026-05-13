@@ -21,7 +21,7 @@ public static class SearchEndpoints
             .WithName("Search")
             .WithDescription("Search secrets and audit logs using the query DSL")
             .WithTags("search")
-            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.GetSecretsPolicy));
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.GetAuditLogsPolicy));
     }
 
     private static async Task<Results<Ok<SearchResultsResponse>, UnauthorizedHttpResult>> Search(
@@ -94,16 +94,16 @@ public static class SearchEndpoints
         string userId,
         IRbacPolicyEngine policyEngine)
     {
-        var allowedSecrets = new List<Secret>();
-        foreach (var secret in secrets)
+        var secretList = secrets.ToList();
+        var readChecks = await Task.WhenAll(secretList.Select(async secret => new
         {
-            var canRead = await policyEngine.CanPerformAsync(userId, $"/secrets/{secret.Name}", "secrets:read");
-            if (canRead)
-            {
-                allowedSecrets.Add(secret);
-            }
-        }
+            Secret = secret,
+            CanRead = await policyEngine.CanPerformAsync(userId, $"/secrets/{secret.Name}", "secrets:read")
+        }));
 
-        return allowedSecrets;
+        return readChecks
+            .Where(result => result.CanRead)
+            .Select(result => result.Secret)
+            .ToList();
     }
 }

@@ -79,7 +79,7 @@ public class SecretRepository : Repository<Secret>, ISecretRepository
                 var exactTagPattern = $"%,{EscapeLikeFragment(tag.Trim())},%";
                 secretQuery = secretQuery.Where(secret =>
                     secret.Tags != null
-                    && EF.Functions.ILike("," + secret.Tags + ",", exactTagPattern));
+                    && EF.Functions.ILike("," + secret.Tags.Replace(" ", string.Empty) + ",", exactTagPattern));
             }
         }
 

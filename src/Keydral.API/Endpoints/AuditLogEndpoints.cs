@@ -5,6 +5,7 @@ using Keydral.API.Middleware;
 using Keydral.API.RateLimiting;
 using Keydral.API.Search;
 using Keydral.Storage.Repositories;
+using System.Globalization;
 
 namespace Keydral.API.Endpoints;
 
@@ -48,8 +49,8 @@ public static class AuditLogEndpoints
         [FromQuery(Name = "resource-type")] string? resourceType = null,
         [FromQuery(Name = "resource-id")] string? resourceId = null,
         [FromQuery] string? result = null,
-        [FromQuery(Name = "from-date")] DateTime? fromDate = null,
-        [FromQuery(Name = "to-date")] DateTime? toDate = null,
+        [FromQuery(Name = "from-date")] string? fromDate = null,
+        [FromQuery(Name = "to-date")] string? toDate = null,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 50,
         ILogger<Program>? logger = null)
@@ -62,6 +63,8 @@ public static class AuditLogEndpoints
 
         try
         {
+            var fromDateFilter = ParseUtcDateFilter(fromDate, endOfDay: false);
+            var toDateFilter = ParseUtcDateFilter(toDate, endOfDay: true);
             var (logs, totalCount) = await auditLogRepository.GetAuditLogsFilteredAsync(
                 query,
                 actor,
@@ -69,8 +72,8 @@ public static class AuditLogEndpoints
                 resourceType,
                 resourceId,
                 result,
-                fromDate,
-                toDate,
+                fromDateFilter,
+                toDateFilter,
                 pageNumber,
                 pageSize);
             var response = new PaginatedResponse<AuditLogResponse>
@@ -102,8 +105,8 @@ public static class AuditLogEndpoints
         [FromQuery(Name = "resource-type")] string? resourceType = null,
         [FromQuery(Name = "resource-id")] string? resourceId = null,
         [FromQuery] string? result = null,
-        [FromQuery(Name = "from-date")] DateTime? fromDate = null,
-        [FromQuery(Name = "to-date")] DateTime? toDate = null,
+        [FromQuery(Name = "from-date")] string? fromDate = null,
+        [FromQuery(Name = "to-date")] string? toDate = null,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 50,
         ILogger<Program>? logger = null)
@@ -121,6 +124,8 @@ public static class AuditLogEndpoints
 
         try
         {
+            var fromDateFilter = ParseUtcDateFilter(fromDate, endOfDay: false);
+            var toDateFilter = ParseUtcDateFilter(toDate, endOfDay: true);
             var (logs, totalCount) = await auditLogRepository.GetAuditLogsFilteredAsync(
                 query,
                 actor,
@@ -128,8 +133,8 @@ public static class AuditLogEndpoints
                 resourceType,
                 resourceId,
                 result,
-                fromDate,
-                toDate,
+                fromDateFilter,
+                toDateFilter,
                 pageNumber,
                 pageSize);
             var response = new PaginatedResponse<AuditLogResponse>
@@ -182,5 +187,25 @@ public static class AuditLogEndpoints
     private static AuditLogResponse MapToDto(Storage.Entities.AuditLog auditLog)
     {
         return SearchFilterService.ToAuditLogResponse(auditLog);
+    }
+
+    private static DateTime? ParseUtcDateFilter(string? value, bool endOfDay)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
+        {
+            return parsedDate.ToDateTime(endOfDay ? TimeOnly.MaxValue : TimeOnly.MinValue, DateTimeKind.Utc);
+        }
+
+        if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsedDateTime))
+        {
+            return DateTime.SpecifyKind(parsedDateTime, DateTimeKind.Utc);
+        }
+
+        throw new BadHttpRequestException($"Invalid date filter '{value}'. Use yyyy-MM-dd.");
     }
 }

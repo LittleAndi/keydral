@@ -9,6 +9,7 @@ namespace Keydral.API.Search;
 public static partial class SearchQueryParser
 {
     private static readonly Regex AndSplitter = CreateAndSplitter();
+    private static readonly Regex RangeSplitter = CreateRangeSplitter();
 
     public static (SecretSearchRequest Secrets, AuditLogSearchRequest AuditLogs) Parse(
         string query,
@@ -146,28 +147,37 @@ public static partial class SearchQueryParser
             return;
         }
 
-        var parts = trimmed[1..^1].Split(" TO ", StringSplitOptions.TrimEntries);
-        if (parts.Length != 2)
+        var match = RangeSplitter.Match(trimmed[1..^1]);
+        if (!match.Success)
         {
             return;
         }
 
-        assignStart(ParseDate(parts[0]));
-        assignEnd(ParseDate(parts[1]));
+        assignStart(ParseDate(match.Groups["start"].Value, endOfDay: false));
+        assignEnd(ParseDate(match.Groups["end"].Value, endOfDay: true));
     }
 
-    private static DateTime? ParseDate(string value)
+    private static DateTime? ParseDate(string value, bool endOfDay)
     {
-        if (value == "*")
+        var trimmed = value.Trim();
+        if (trimmed == "*")
         {
             return null;
         }
 
-        return DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed)
-            ? parsed
+        if (DateOnly.TryParseExact(trimmed, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateOnly))
+        {
+            return dateOnly.ToDateTime(endOfDay ? TimeOnly.MaxValue : TimeOnly.MinValue, DateTimeKind.Utc);
+        }
+
+        return DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed)
+            ? DateTime.SpecifyKind(parsed, DateTimeKind.Utc)
             : null;
     }
 
     [GeneratedRegex(@"\s+AND\s+", RegexOptions.IgnoreCase)]
     private static partial Regex CreateAndSplitter();
+
+    [GeneratedRegex(@"^(?<start>.+?)\s+TO\s+(?<end>.+?)$", RegexOptions.IgnoreCase)]
+    private static partial Regex CreateRangeSplitter();
 }
