@@ -6,6 +6,19 @@ See [docs/SETUP.md](docs/SETUP.md) for local development setup.
 
 ---
 
+## Multi-Agent Workflow
+
+When developing features with AI coding agents (GitHub Copilot coding agent, Copilot agent mode, etc.), follow the repo-specific guidance in [docs/multi-agent-workflow.md](docs/multi-agent-workflow.md).
+
+That document covers:
+- Agent roles and ownership (which agent owns which `src/` folder)
+- Branch naming and integration-branch strategy
+- Copy-paste prompt templates for each agent role
+- A step-by-step execution playbook (using secret restore as a worked example)
+- Security guardrails that every agent must respect
+
+---
+
 ## Coding Conventions
 
 ### Repository Pattern — Save Semantics
