@@ -24,30 +24,8 @@ public class SecretCommand
     {
         try
         {
-            var config = await _configManager.LoadAsync();
-
-            // Check authentication
-            if (string.IsNullOrEmpty(config.AccessToken))
-            {
-                AnsiConsole.MarkupLine("[bold red]✗ Not authenticated[/]");
-                AnsiConsole.MarkupLine("Please run: [cyan]keydral login[/]");
-                Environment.Exit(1);
-            }
-
-            // Handle token refresh if needed
-            if (!config.IsTokenValid() && !string.IsNullOrEmpty(config.RefreshToken))
-            {
-                await RefreshTokenAsync(config);
-            }
-
-            if (!config.IsTokenValid())
-            {
-                AnsiConsole.MarkupLine("[bold red]✗ Token expired[/]");
-                AnsiConsole.MarkupLine("Please run: [cyan]keydral login[/]");
-                Environment.Exit(1);
-            }
-
-            var client = new SecretsApiClient(config.ApiUrl, config.AccessToken);
+            var config = await CommandAuthentication.GetAuthenticatedConfigAsync(_configManager);
+            var client = new SecretsApiClient(config.ApiUrl, config.AccessToken!);
 
             switch (_operation)
             {
@@ -63,6 +41,9 @@ public class SecretCommand
                 case "list":
                     await ListSecretsAsync(client);
                     break;
+                case "search":
+                    await SearchSecretsAsync(client);
+                    break;
                 default:
                     AnsiConsole.MarkupLine($"[bold red]✗ Unknown operation:[/] {_operation}");
                     Environment.Exit(1);
@@ -74,6 +55,53 @@ public class SecretCommand
             AnsiConsole.MarkupLine($"[bold red]✗ Error:[/] {ex.Message}");
             Environment.Exit(1);
         }
+    }
+
+    internal static SecretSearchCommandOptions ParseSearchOptions(string[] args)
+    {
+        var request = new SecretSearchOptions();
+        var queryParts = new List<string>();
+        var asJson = false;
+
+        for (var index = 0; index < args.Length; index++)
+        {
+            switch (args[index])
+            {
+                case "--tag":
+                    request.Tags.Add(ReadRequiredValue(args, ref index, "--tag"));
+                    break;
+                case "--created-after":
+                    request.CreatedAfter = ParseDate(ReadRequiredValue(args, ref index, "--created-after"), "--created-after");
+                    break;
+                case "--created-before":
+                    request.CreatedBefore = ParseDate(ReadRequiredValue(args, ref index, "--created-before"), "--created-before");
+                    break;
+                case "--updated-after":
+                    request.UpdatedAfter = ParseDate(ReadRequiredValue(args, ref index, "--updated-after"), "--updated-after");
+                    break;
+                case "--updated-before":
+                    request.UpdatedBefore = ParseDate(ReadRequiredValue(args, ref index, "--updated-before"), "--updated-before");
+                    break;
+                case "--created-by":
+                    request.CreatedBy = ReadRequiredValue(args, ref index, "--created-by");
+                    break;
+                case "--page-number":
+                    request.PageNumber = ParsePositiveInt(ReadRequiredValue(args, ref index, "--page-number"), "--page-number");
+                    break;
+                case "--page-size":
+                    request.PageSize = ParsePositiveInt(ReadRequiredValue(args, ref index, "--page-size"), "--page-size");
+                    break;
+                case "--json":
+                    asJson = true;
+                    break;
+                default:
+                    queryParts.Add(args[index]);
+                    break;
+            }
+        }
+
+        request.Query = queryParts.Count == 0 ? null : string.Join(' ', queryParts);
+        return new SecretSearchCommandOptions(request, asJson);
     }
 
     private async Task GetSecretAsync(SecretsApiClient client)
@@ -192,35 +220,78 @@ public class SecretCommand
                 secret.Name,
                 secret.Version.ToString(),
                 secret.CreatedBy ?? "-",
-                secret.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+                secret.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss"));
         }
 
         AnsiConsole.Write(table);
     }
 
-    private async Task RefreshTokenAsync(CliConfig config)
+    private async Task SearchSecretsAsync(SecretsApiClient client)
     {
-        try
-        {
-            var authService = new AuthenticationService(config.KeycloakUrl, config.Realm, config.ClientId);
-            var tokenResponse = await authService.RefreshTokenAsync(config.RefreshToken!);
+        var options = ParseSearchOptions(_args);
+        var result = await client.SearchSecretsAsync(options.Request);
 
-            await _configManager.UpdateTokenAsync(
-                tokenResponse.AccessToken,
-                tokenResponse.RefreshToken,
-                tokenResponse.ExpiresIn,
-                config.Username ?? "user",
-                config.UserId ?? string.Empty);
-
-            // Reload config
-            var updated = await _configManager.LoadAsync();
-            config.AccessToken = updated.AccessToken;
-            config.RefreshToken = updated.RefreshToken;
-            config.TokenExpiresAt = updated.TokenExpiresAt;
-        }
-        catch
+        if (result == null || result.Items.Count == 0)
         {
-            // Silently fail token refresh, will fail on next operation
+            AnsiConsole.MarkupLine("[dim]No secrets found[/]");
+            return;
         }
+
+        if (options.AsJson)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            AnsiConsole.Write(json);
+            return;
+        }
+
+        var table = new Table();
+        table.AddColumn("[cyan]Name[/]");
+        table.AddColumn("[cyan]Version[/]");
+        table.AddColumn("[cyan]Tags[/]");
+        table.AddColumn("[cyan]Updated At[/]");
+
+        foreach (var secret in result.Items)
+        {
+            table.AddRow(
+                secret.Name,
+                secret.Version.ToString(),
+                secret.Tags ?? "-",
+                secret.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    private static string ReadRequiredValue(string[] args, ref int index, string optionName)
+    {
+        if (index + 1 >= args.Length)
+        {
+            throw new InvalidOperationException($"Missing value for {optionName}");
+        }
+
+        index++;
+        return args[index];
+    }
+
+    private static int ParsePositiveInt(string value, string optionName)
+    {
+        if (!int.TryParse(value, out var parsed) || parsed <= 0)
+        {
+            throw new InvalidOperationException($"{optionName} must be a positive integer");
+        }
+
+        return parsed;
+    }
+
+    private static DateTime ParseDate(string value, string optionName)
+    {
+        if (!DateTime.TryParse(value, out var parsed))
+        {
+            throw new InvalidOperationException($"{optionName} must be a valid date");
+        }
+
+        return parsed;
     }
 }
+
+internal sealed record SecretSearchCommandOptions(SecretSearchOptions Request, bool AsJson);

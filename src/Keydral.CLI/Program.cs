@@ -38,10 +38,24 @@ try
                 AnsiConsole.MarkupLine("  [green]get <name>[/]              Get secret value");
                 AnsiConsole.MarkupLine("  [green]set <name> <value>[/]     Set/update secret");
                 AnsiConsole.MarkupLine("  [green]delete <name>[/]           Delete secret");
+                AnsiConsole.MarkupLine("  [green]search [query][/]          Search secrets");
                 Environment.Exit(0);
             }
             var secretCmd = new SecretCommand(configManager, commandArgs[0], commandArgs.Skip(1).ToArray());
             await secretCmd.ExecuteAsync();
+            break;
+
+        case "audit":
+            if (commandArgs.Length == 0)
+            {
+                AnsiConsole.MarkupLine("[yellow]Usage:[/] keydral audit <operation> [options]");
+                AnsiConsole.MarkupLine("");
+                AnsiConsole.MarkupLine("[cyan]Operations:[/]");
+                AnsiConsole.MarkupLine("  [green]search [query][/]          Search audit logs");
+                Environment.Exit(0);
+            }
+            var auditCmd = new AuditCommand(configManager, commandArgs[0], commandArgs.Skip(1).ToArray());
+            await auditCmd.ExecuteAsync();
             break;
 
         case "--version":
@@ -83,6 +97,7 @@ void ShowHelp()
     Console.WriteLine("  login                   Authenticate with Keydral");
     Console.WriteLine("  logout                  Clear stored credentials");
     Console.WriteLine("  secret                  Secret management");
+    Console.WriteLine("  audit                   Audit log search");
     Console.WriteLine("  help                    Show this help message");
     Console.WriteLine("");
     Console.WriteLine("Secret Operations:");
@@ -90,6 +105,10 @@ void ShowHelp()
     Console.WriteLine("  keydral secret get <name>            Get secret");
     Console.WriteLine("  keydral secret set <name> <value>   Set secret");
     Console.WriteLine("  keydral secret delete <name>         Delete secret");
+    Console.WriteLine("  keydral secret search [query]        Search secrets");
+    Console.WriteLine("");
+    Console.WriteLine("Audit Operations:");
+    Console.WriteLine("  keydral audit search [query]         Search audit logs");
     Console.WriteLine("");
     Console.WriteLine("Options:");
     Console.WriteLine("  --help, -h              Show help");
@@ -100,5 +119,7 @@ void ShowHelp()
     Console.WriteLine("  keydral secret set db-password 'super-secret'");
     Console.WriteLine("  keydral secret get db-password");
     Console.WriteLine("  keydral secret list");
+    Console.WriteLine("  keydral secret search postgres --tag production");
+    Console.WriteLine("  keydral audit search --action CREATE --result SUCCESS");
 }
 

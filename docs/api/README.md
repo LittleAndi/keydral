@@ -95,6 +95,35 @@ Lists all secrets the authenticated user has read permission for.
 
 ---
 
+### Search Secrets
+
+**GET** `/api/secrets/search?q=postgres&tags=production,backend&created-by=alice@example.com`
+
+Search secret metadata with full-text matching across **name**, **description**, and **tags**.
+
+**Parameters:**
+
+- `q` (query, string): Full-text search term
+- `tags` (query, string): Comma-separated tags that must all match
+- `created-after` (query, date): Filter by creation timestamp lower bound
+- `created-before` (query, date): Filter by creation timestamp upper bound
+- `updated-after` (query, date): Filter by update timestamp lower bound
+- `updated-before` (query, date): Filter by update timestamp upper bound
+- `created-by` (query, string): Filter by creator
+- `pageNumber` (query, int): Page number (default: 1)
+- `pageSize` (query, int): Items per page (default: 50)
+
+**Examples:**
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5001/api/secrets/search?q=postgres&tags=production"
+
+keydral secret search postgres --tag production --tag backend
+```
+
+---
+
 ### Get Secret
 
 **GET** `/api/secrets/{name}`
@@ -374,6 +403,72 @@ Query audit logs with filtering.
 
 ---
 
+### Search Audit Logs
+
+**GET** `/api/audit-logs/search?actor=alice@example.com&action=CREATE&result=SUCCESS&from-date=2026-01-01&to-date=2026-01-31`
+
+Search audit logs with full-text matching plus advanced filters.
+
+**Parameters:**
+
+- `q` (query, string): Full-text search term across actor, action, resource type, resource ID, resource name, and errors
+- `actor` (query, string): Filter by actor
+- `action` (query, string): Filter by action type
+- `result` (query, string): Filter by result (SUCCESS, FAILED)
+- `resource-type` (query, string): Filter by resource type
+- `resource-id` (query, string): Filter by resource identifier
+- `from-date` (query, date): Filter by timestamp lower bound
+- `to-date` (query, date): Filter by timestamp upper bound
+- `pageNumber` (query, int): Page number (default: 1)
+- `pageSize` (query, int): Items per page (default: 50)
+
+**Examples:**
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5001/api/audit-logs/search?action=CREATE&result=SUCCESS&resource-type=Secret"
+
+keydral audit search --action CREATE --result SUCCESS --resource-type Secret
+```
+
+---
+
+## 🔎 Query DSL
+
+### Cross-Resource Search
+
+**GET** `/api/search?q=name:"*password" AND tags:production AND action:CREATE`
+
+Search secrets and audit logs together with a lightweight AND-based query DSL.
+
+**Supported fields:**
+
+| Field | Meaning |
+|---|---|
+| `name` | Secret name, supports `*` wildcards |
+| `description` | Secret description full-text filter |
+| `tags` | Secret tag filter |
+| `created` | Secret created date range, e.g. `[2026-01-01 TO 2026-01-31]` |
+| `updated` | Secret updated date range |
+| `created-by` | Secret creator |
+| `actor` | Audit actor |
+| `action` | Audit action |
+| `result` | Audit result |
+| `resource-type` | Audit resource type |
+| `resource-id` | Audit resource ID |
+| `date` / `timestamp` | Audit date range |
+
+**Example:**
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5001/api/search?q=name:%22*password%22%20AND%20tags:production%20AND%20action:CREATE"
+```
+
+The response contains paginated `secrets` and `auditLogs` sections.
+
+---
+
 ### Get Audit Log
 
 **GET** `/api/audit-logs/{id}`
@@ -611,6 +706,20 @@ curl -X PUT \
   -H "Content-Type: application/json" \
   -d '{"value":"secret123","description":"My secret"}' \
   http://localhost:5001/api/secrets/my-secret
+```
+
+**Search secrets:**
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5001/api/secrets/search?q=postgres&tags=production"
+```
+
+**Search audit logs:**
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5001/api/audit-logs/search?action=CREATE&result=SUCCESS"
 ```
 
 ### JavaScript/Node.js

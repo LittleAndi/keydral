@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Keydral.API.Models;
 using Keydral.API.Authorization;
 using Keydral.API.Middleware;
 using Keydral.API.RateLimiting;
+using Keydral.API.Search;
 using Keydral.Core.Authorization;
 using Keydral.Core.Authentication;
 using Keydral.Encryption;
@@ -21,6 +23,11 @@ public static class SecretEndpoints
     {
         var group = app.MapGroup("/api/secrets")
             .WithTags(TagName);
+
+        group.MapGet("/search", SearchSecrets)
+            .WithName("SearchSecrets")
+            .WithDescription("Search secrets with full-text and advanced filters")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.GetSecretsPolicy));
 
         group.MapGet("/", ListSecrets)
             .WithName("ListSecrets")
@@ -75,43 +82,70 @@ public static class SecretEndpoints
         {
             // Get all secrets (we'll filter by permission)
             var secrets = await secretRepository.GetActiveSecretsAsync();
-
-            // Filter secrets by RBAC policy
-            var allowedSecrets = new List<SecretListItemResponse>();
-            foreach (var secret in secrets)
-            {
-                var canRead = await policyEngine.CanPerformAsync(
-                    userContext.Id,
-                    $"/secrets/{secret.Name}",
-                    "secrets:read");
-
-                if (canRead)
-                {
-                    allowedSecrets.Add(new SecretListItemResponse
-                    {
-                        Id = secret.Id,
-                        Name = secret.Name,
-                        Description = secret.Description,
-                        Version = secret.CurrentVersion,
-                        UpdatedAt = secret.UpdatedAt,
-                        Tags = secret.Tags
-                    });
-                }
-            }
-
-            var response = new PaginatedResponse<SecretListItemResponse>
-            {
-                Items = allowedSecrets,
-                PageNumber = 1,
-                PageSize = allowedSecrets.Count,
-                TotalCount = allowedSecrets.Count
-            };
+            var allowedSecrets = await SearchEndpoints.FilterReadableSecretsAsync(secrets, userContext.Id, policyEngine);
+            var response = SearchFilterService.Paginate(
+                allowedSecrets.Select(SearchFilterService.ToSecretListItem),
+                pageNumber: 1,
+                pageSize: Math.Max(1, allowedSecrets.Count));
 
             return TypedResults.Ok(response);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error listing secrets");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Search secrets with full-text and advanced filters.
+    /// </summary>
+    private static async Task<Ok<PaginatedResponse<SecretListItemResponse>>> SearchSecrets(
+        HttpContext context,
+        ISecretRepository secretRepository,
+        IRbacPolicyEngine policyEngine,
+        [FromQuery(Name = "q")] string? query = null,
+        [FromQuery] string? tags = null,
+        [FromQuery(Name = "created-after")] DateTime? createdAfter = null,
+        [FromQuery(Name = "created-before")] DateTime? createdBefore = null,
+        [FromQuery(Name = "updated-after")] DateTime? updatedAfter = null,
+        [FromQuery(Name = "updated-before")] DateTime? updatedBefore = null,
+        [FromQuery(Name = "created-by")] string? createdBy = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 50,
+        ILogger<Program>? logger = null)
+    {
+        var userContext = context.GetUserContext();
+        if (userContext == null)
+        {
+            return TypedResults.Ok(new PaginatedResponse<SecretListItemResponse> { Items = new() });
+        }
+
+        try
+        {
+            var secrets = await secretRepository.GetActiveSecretsAsync();
+            var allowedSecrets = await SearchEndpoints.FilterReadableSecretsAsync(secrets, userContext.Id, policyEngine);
+            var searchRequest = new SecretSearchRequest
+            {
+                Query = query,
+                Tags = ParseCsv(tags),
+                CreatedAfter = createdAfter,
+                CreatedBefore = createdBefore,
+                UpdatedAfter = updatedAfter,
+                UpdatedBefore = updatedBefore,
+                CreatedBy = createdBy,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+
+            var filteredSecrets = SearchFilterService.FilterSecrets(allowedSecrets, searchRequest)
+                .Select(SearchFilterService.ToSecretListItem);
+
+            return TypedResults.Ok(SearchFilterService.Paginate(filteredSecrets, pageNumber, pageSize));
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error searching secrets");
             throw;
         }
     }
@@ -609,5 +643,12 @@ public static class SecretEndpoints
             logger.LogError(ex, "Error restoring secret {Name} to version {Version}", name, version);
             return TypedResults.BadRequest("Failed to restore version");
         }
+    }
+
+    private static List<string> ParseCsv(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? []
+            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
     }
 }

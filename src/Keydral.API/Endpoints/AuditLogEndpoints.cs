@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Keydral.API.Models;
 using Keydral.API.Middleware;
 using Keydral.API.RateLimiting;
+using Keydral.API.Search;
 using Keydral.Storage.Repositories;
 
 namespace Keydral.API.Endpoints;
@@ -18,6 +19,11 @@ public static class AuditLogEndpoints
     {
         var group = app.MapGroup("/api/audit-logs")
             .WithTags(TagName);
+
+        group.MapGet("/search", SearchAuditLogs)
+            .WithName("SearchAuditLogs")
+            .WithDescription("Search audit logs with full-text and advanced filters")
+            .WithMetadata(new EndpointRateLimitPolicy(RateLimitingExtensions.GetAuditLogsPolicy));
 
         group.MapGet("/", ListAuditLogs)
             .WithName("ListAuditLogs")
@@ -36,10 +42,14 @@ public static class AuditLogEndpoints
     private static async Task<Results<Ok<PaginatedResponse<AuditLogResponse>>, ForbidHttpResult, UnauthorizedHttpResult>> ListAuditLogs(
         HttpContext context,
         IAuditLogRepository auditLogRepository,
+        [FromQuery(Name = "q")] string? query = null,
         [FromQuery] string? actor = null,
         [FromQuery] string? action = null,
+        [FromQuery(Name = "resource-type")] string? resourceType = null,
         [FromQuery] string? resourceId = null,
         [FromQuery] string? result = null,
+        [FromQuery(Name = "from-date")] DateTime? fromDate = null,
+        [FromQuery(Name = "to-date")] DateTime? toDate = null,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 50,
         ILogger<Program>? logger = null)
@@ -52,22 +62,89 @@ public static class AuditLogEndpoints
 
         try
         {
-            var (logs, totalCount) = await auditLogRepository.GetAuditLogsFilteredAsync(
-                actor, action, resourceId, result, pageNumber, pageSize);
-
-            var response = new PaginatedResponse<AuditLogResponse>
+            var logs = await auditLogRepository.GetAllAsync();
+            var searchRequest = new AuditLogSearchRequest
             {
-                Items = logs.Select(MapToDto).ToList(),
+                Query = query,
+                Actor = actor,
+                Action = action,
+                ResourceType = resourceType,
+                ResourceId = resourceId,
+                Result = result,
+                FromDate = fromDate,
+                ToDate = toDate,
                 PageNumber = pageNumber,
-                PageSize = pageSize,
-                TotalCount = totalCount
+                PageSize = pageSize
             };
+            var response = SearchFilterService.Paginate(
+                SearchFilterService.FilterAuditLogs(logs, searchRequest).Select(SearchFilterService.ToAuditLogResponse),
+                pageNumber,
+                pageSize);
 
             return TypedResults.Ok(response);
         }
         catch (Exception ex)
         {
             logger?.LogError(ex, "Error listing audit logs");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Search audit log entries with full-text search and advanced filters.
+    /// </summary>
+    private static async Task<Results<Ok<PaginatedResponse<AuditLogResponse>>, ForbidHttpResult, UnauthorizedHttpResult>> SearchAuditLogs(
+        HttpContext context,
+        IAuditLogRepository auditLogRepository,
+        [FromQuery(Name = "q")] string? query = null,
+        [FromQuery] string? actor = null,
+        [FromQuery] string? action = null,
+        [FromQuery(Name = "resource-type")] string? resourceType = null,
+        [FromQuery(Name = "resource-id")] string? resourceId = null,
+        [FromQuery] string? result = null,
+        [FromQuery(Name = "from-date")] DateTime? fromDate = null,
+        [FromQuery(Name = "to-date")] DateTime? toDate = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 50,
+        ILogger<Program>? logger = null)
+    {
+        var userContext = context.GetUserContext();
+        if (userContext == null)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        if (!userContext.HasRole("secret-admin"))
+        {
+            return TypedResults.Forbid();
+        }
+
+        try
+        {
+            var logs = await auditLogRepository.GetAllAsync();
+            var searchRequest = new AuditLogSearchRequest
+            {
+                Query = query,
+                Actor = actor,
+                Action = action,
+                ResourceType = resourceType,
+                ResourceId = resourceId,
+                Result = result,
+                FromDate = fromDate,
+                ToDate = toDate,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+            var response = SearchFilterService.Paginate(
+                SearchFilterService.FilterAuditLogs(logs, searchRequest).Select(SearchFilterService.ToAuditLogResponse),
+                pageNumber,
+                pageSize);
+
+            return TypedResults.Ok(response);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error searching audit logs");
             throw;
         }
     }
@@ -104,19 +181,6 @@ public static class AuditLogEndpoints
 
     private static AuditLogResponse MapToDto(Storage.Entities.AuditLog auditLog)
     {
-        return new AuditLogResponse
-        {
-            Id = auditLog.Id,
-            Action = auditLog.Action,
-            Actor = auditLog.Actor,
-            ResourceType = auditLog.ResourceType,
-            ResourceId = auditLog.ResourceId,
-            Result = auditLog.Result,
-            StatusCode = auditLog.StatusCode,
-            ErrorMessage = auditLog.ErrorMessage,
-            SourceIp = auditLog.SourceIp,
-            UserAgent = auditLog.UserAgent,
-            Timestamp = auditLog.Timestamp
-        };
+        return SearchFilterService.ToAuditLogResponse(auditLog);
     }
 }
