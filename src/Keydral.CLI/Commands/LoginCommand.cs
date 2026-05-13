@@ -1,3 +1,4 @@
+using System.Globalization;
 using Spectre.Console;
 using Keydral.CLI.Config;
 using Keydral.CLI.Services;
@@ -11,6 +12,7 @@ public class LoginCommand
 {
     private readonly ConfigManager _configManager;
     private const int PollingStatusRefreshMilliseconds = 200;
+    private static readonly TimeSpan ShortLivedTokenWarningThreshold = TimeSpan.FromMinutes(5);
 
     public LoginCommand(ConfigManager configManager)
     {
@@ -57,6 +59,13 @@ public class LoginCommand
             AnsiConsole.MarkupLine("");
             AnsiConsole.MarkupLine("[bold green]✓ Login successful![/]");
             AnsiConsole.MarkupLine($"[dim]Username: {username}[/]");
+
+            var tokenLifetimeWarning = GetTokenLifetimeWarning(claims, DateTimeOffset.UtcNow);
+            if (tokenLifetimeWarning is not null)
+            {
+                AnsiConsole.MarkupLine($"[bold yellow]⚠ {Markup.Escape(tokenLifetimeWarning)}[/]");
+            }
+
             AnsiConsole.MarkupLine("");
             AnsiConsole.MarkupLine("[dim]You can now use:[/]");
             AnsiConsole.MarkupLine("  [cyan]keydral secret list[/]");
@@ -135,4 +144,55 @@ public class LoginCommand
 
     private static int GetSecondsRemaining(DateTimeOffset expiresAt) =>
         Math.Max(0, (int)Math.Ceiling((expiresAt - DateTimeOffset.UtcNow).TotalSeconds));
+
+    internal static string? GetTokenLifetimeWarning(
+        IReadOnlyDictionary<string, object> claims,
+        DateTimeOffset nowUtc)
+    {
+        if (!TryGetExpiration(claims, out var expiresAt))
+        {
+            return null;
+        }
+
+        var remainingLifetime = expiresAt - nowUtc;
+        if (remainingLifetime >= ShortLivedTokenWarningThreshold || remainingLifetime <= TimeSpan.Zero)
+        {
+            return null;
+        }
+
+        return $"Token expires in {FormatRemainingLifetime(remainingLifetime)} — consider refreshing before running long commands";
+    }
+
+    private static bool TryGetExpiration(
+        IReadOnlyDictionary<string, object> claims,
+        out DateTimeOffset expiresAt)
+    {
+        expiresAt = default;
+
+        if (!claims.TryGetValue("exp", out var expValue))
+        {
+            return false;
+        }
+
+        var expText = Convert.ToString(expValue, CultureInfo.InvariantCulture);
+        if (!long.TryParse(expText, CultureInfo.InvariantCulture, out var unixTimeSeconds))
+        {
+            return false;
+        }
+
+        expiresAt = DateTimeOffset.FromUnixTimeSeconds(unixTimeSeconds);
+        return true;
+    }
+
+    private static string FormatRemainingLifetime(TimeSpan remainingLifetime)
+    {
+        if (remainingLifetime.TotalMinutes >= 1)
+        {
+            var wholeMinutes = (int)Math.Floor(remainingLifetime.TotalMinutes);
+            return wholeMinutes == 1 ? "1 minute" : $"{wholeMinutes} minutes";
+        }
+
+        var wholeSeconds = Math.Max(1, (int)Math.Floor(remainingLifetime.TotalSeconds));
+        return wholeSeconds == 1 ? "1 second" : $"{wholeSeconds} seconds";
+    }
 }
