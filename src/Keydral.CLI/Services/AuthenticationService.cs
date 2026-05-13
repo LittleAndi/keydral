@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json.Serialization;
-using IdentityModel.Client;
 
 namespace Keydral.CLI.Services;
 
