@@ -65,9 +65,25 @@ public class LoginCommand
             AnsiConsole.MarkupLine("  [cyan]keydral secret get <name>[/]");
             AnsiConsole.MarkupLine("  [cyan]keydral secret set <name> <value>[/]");
         }
+        catch (OAuth2Exception ex)
+        {
+            if (ex.IsRecoverable)
+            {
+                AnsiConsole.MarkupLine($"[bold yellow]⚠ Login was interrupted:[/] {ex.Message}");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[bold red]✗ Login failed:[/] {ex.Message}");
+                if (!string.IsNullOrEmpty(ex.ErrorCode))
+                {
+                    AnsiConsole.MarkupLine($"[dim]Error code: {ex.ErrorCode}[/]");
+                }
+            }
+            Environment.Exit(1);
+        }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[bold red]✗ Login failed:[/] {ex.Message}");
+            AnsiConsole.MarkupLine($"[bold red]✗ Unexpected error:[/] {ex.Message}");
             Environment.Exit(1);
         }
     }

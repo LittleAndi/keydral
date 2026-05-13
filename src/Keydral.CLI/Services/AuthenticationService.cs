@@ -4,6 +4,26 @@ using System.Text.Json.Serialization;
 namespace Keydral.CLI.Services;
 
 /// <summary>
+/// Typed exception for OAuth 2.0 Device Flow errors (RFC 8628).
+/// </summary>
+public class OAuth2Exception : Exception
+{
+    public string? ErrorCode { get; set; }
+    public string? ErrorDescription { get; set; }
+    public bool IsRecoverable { get; set; } = false;
+
+    public OAuth2Exception(string message) : base(message) { }
+
+    public OAuth2Exception(string errorCode, string message, bool isRecoverable = false)
+        : base(message)
+    {
+        ErrorCode = errorCode;
+        ErrorDescription = message;
+        IsRecoverable = isRecoverable;
+    }
+}
+
+/// <summary>
 /// Response from Keycloak token endpoint.
 /// </summary>
 public class TokenResponse
@@ -19,6 +39,21 @@ public class TokenResponse
 
     [JsonPropertyName("token_type")]
     public string TokenType { get; set; } = "Bearer";
+}
+
+/// <summary>
+/// OAuth 2.0 error response (RFC 8628).
+/// </summary>
+internal class OAuth2ErrorResponse
+{
+    [JsonPropertyName("error")]
+    public string Error { get; set; } = string.Empty;
+
+    [JsonPropertyName("error_description")]
+    public string? ErrorDescription { get; set; }
+
+    [JsonPropertyName("error_uri")]
+    public string? ErrorUri { get; set; }
 }
 
 /// <summary>
@@ -55,10 +90,15 @@ public class AuthenticationService
         request.Content = content;
 
         var response = await _httpClient.SendAsync(request);
-        response.EnsureSuccessStatusCode();
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new OAuth2Exception("device_request_failed", 
+                $"Failed to initiate device flow: {response.StatusCode}");
+        }
 
         var json = await System.Text.Json.JsonSerializer.DeserializeAsync<DeviceCodeResponse>(
-            await response.Content.ReadAsStreamAsync()) ?? throw new InvalidOperationException("Invalid device code response");
+            await response.Content.ReadAsStreamAsync()) ?? throw new OAuth2Exception("invalid_response", "Invalid device code response from server");
         return new DeviceAuthorizationResponse
         {
             DeviceCode = json.DeviceCode,
@@ -71,6 +111,7 @@ public class AuthenticationService
 
     /// <summary>
     /// Poll for token completion after user approves device code.
+    /// Implements RFC 8628 Device Authorization Grant error handling.
     /// </summary>
     public async Task<TokenResponse> PollForTokenAsync(string deviceCode, int expiresIn)
     {
@@ -100,8 +141,57 @@ public class AuthenticationService
                     if (json != null) return json;
                 }
 
+                // Parse error response per RFC 8628
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                {
+                    var errorJson = await System.Text.Json.JsonSerializer.DeserializeAsync<OAuth2ErrorResponse>(
+                        await response.Content.ReadAsStreamAsync());
+
+                    if (errorJson?.Error != null)
+                    {
+                        switch (errorJson.Error)
+                        {
+                            // Fast-fail errors: user action required or unrecoverable
+                            case "access_denied":
+                                throw new OAuth2Exception(
+                                    "access_denied",
+                                    "Login was denied. Please try again and approve the request in the browser.",
+                                    isRecoverable: true);
+
+                            case "expired_token":
+                                throw new OAuth2Exception(
+                                    "expired_token",
+                                    "Device code has expired. Please start the login process again.",
+                                    isRecoverable: true);
+
+                            case "invalid_grant":
+                                throw new OAuth2Exception(
+                                    "invalid_grant",
+                                    "Invalid device code. Please try logging in again.",
+                                    isRecoverable: true);
+
+                            // Recoverable errors: keep polling
+                            case "authorization_pending":
+                            case "slow_down":
+                                // Continue polling (slow_down handling: exponential backoff in future)
+                                break;
+
+                            // Unknown error
+                            default:
+                                throw new OAuth2Exception(
+                                    errorJson.Error,
+                                    errorJson.ErrorDescription ?? $"OAuth error: {errorJson.Error}",
+                                    isRecoverable: false);
+                        }
+                    }
+                }
+
                 // If not ready yet, wait and retry
                 await Task.Delay(interval * 1000);
+            }
+            catch (OAuth2Exception)
+            {
+                throw; // Re-throw OAuth2 errors immediately
             }
             catch (HttpRequestException)
             {
@@ -110,7 +200,7 @@ public class AuthenticationService
             }
         }
 
-        throw new InvalidOperationException("Device code authorization timed out");
+        throw new OAuth2Exception("timeout", "Device code authorization timed out. Please check your internet connection and try again.", isRecoverable: true);
     }
 
     /// <summary>
@@ -130,10 +220,26 @@ public class AuthenticationService
 
         request.Content = content;
         var response = await _httpClient.SendAsync(request);
-        response.EnsureSuccessStatusCode();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            // Parse error response
+            var errorJson = await System.Text.Json.JsonSerializer.DeserializeAsync<OAuth2ErrorResponse>(
+                await response.Content.ReadAsStreamAsync());
+
+            if (errorJson?.Error != null)
+            {
+                throw new OAuth2Exception(
+                    errorJson.Error,
+                    errorJson.ErrorDescription ?? $"Token refresh failed: {errorJson.Error}",
+                    isRecoverable: true);
+            }
+
+            response.EnsureSuccessStatusCode();
+        }
 
         var json = await System.Text.Json.JsonSerializer.DeserializeAsync<TokenResponse>(
-            await response.Content.ReadAsStreamAsync()) ?? throw new InvalidOperationException("Invalid token response");
+            await response.Content.ReadAsStreamAsync()) ?? throw new OAuth2Exception("invalid_response", "Invalid token response from server");
         return json;
     }
 
