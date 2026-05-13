@@ -111,13 +111,19 @@ public class AuthenticationService
 
     /// <summary>
     /// Poll for token completion after user approves device code.
-    /// Implements RFC 8628 Device Authorization Grant error handling.
+    /// Implements RFC 8628 Device Authorization Grant error handling, including slow_down backoff.
     /// </summary>
-    public async Task<TokenResponse> PollForTokenAsync(string deviceCode, int expiresIn)
+    /// <param name="deviceCode">The device code to poll with</param>
+    /// <param name="expiresIn">Token expiration time in seconds</param>
+    /// <param name="initialInterval">Initial poll interval in seconds (from device auth response)</param>
+    public async Task<TokenResponse> PollForTokenAsync(string deviceCode, int expiresIn, int initialInterval = 5)
     {
         var tokenUrl = $"{_keycloakUrl}/realms/{_realm}/protocol/openid-connect/token";
         var startTime = DateTime.UtcNow;
-        var interval = 5; // Default poll interval in seconds
+        const int DefaultInterval = 5; // RFC 8628 default when interval is omitted
+        var interval = initialInterval > 0 ? initialInterval : DefaultInterval; // Poll interval in seconds
+        const int MaxInterval = 30; // RFC 8628 recommended max interval
+        const int BackoffIncrement = 5; // RFC 8628 slow_down increment
 
         while ((DateTime.UtcNow - startTime).TotalSeconds < expiresIn)
         {
@@ -170,10 +176,13 @@ public class AuthenticationService
                                     "Invalid device code. Please try logging in again.",
                                     isRecoverable: true);
 
-                            // Recoverable errors: keep polling
-                            case "authorization_pending":
+                            // RFC 8628 slow_down: server is busy, increase polling interval
                             case "slow_down":
-                                // Continue polling (slow_down handling: exponential backoff in future)
+                                interval += BackoffIncrement;
+                                break;
+
+                            // RFC 8628 authorization_pending: user hasn't authorized yet, keep polling
+                            case "authorization_pending":
                                 break;
 
                             // Unknown error

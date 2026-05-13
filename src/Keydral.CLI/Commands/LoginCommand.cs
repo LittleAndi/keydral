@@ -39,7 +39,7 @@ public class LoginCommand
             AnsiConsole.MarkupLine("[dim]Waiting for authorization (timeout in " +
                 deviceAuth.ExpiresIn + " seconds)...[/]");
 
-            var tokenResponse = await authService.PollForTokenAsync(deviceAuth.DeviceCode, deviceAuth.ExpiresIn);
+            var tokenResponse = await authService.PollForTokenAsync(deviceAuth.DeviceCode, deviceAuth.ExpiresIn, deviceAuth.Interval);
 
             // Extract user info from token
             var claims = authService.ExtractClaims(tokenResponse.AccessToken);
