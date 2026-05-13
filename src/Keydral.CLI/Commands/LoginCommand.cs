@@ -90,22 +90,29 @@ public class LoginCommand
         AuthenticationService authService,
         DeviceAuthorizationResponse deviceAuth)
     {
+        var statusLock = new object();
         var currentStatus = "Waiting for authorization...";
         var expiresAt = DateTimeOffset.UtcNow.AddSeconds(deviceAuth.ExpiresIn);
 
         return await AnsiConsole.Status()
             .Spinner(Spinner.Known.Dots)
-            .StartAsync(BuildPollingStatus(currentStatus, GetSecondsRemaining(expiresAt)), async ctx =>
+            .StartAsync(BuildPollingStatus(GetCurrentStatus(), GetSecondsRemaining(expiresAt)), async ctx =>
             {
                 var pollingTask = authService.PollForTokenAsync(
                     deviceAuth.DeviceCode,
                     deviceAuth.ExpiresIn,
                     deviceAuth.Interval,
-                    update => currentStatus = update.StatusMessage);
+                    update =>
+                    {
+                        lock (statusLock)
+                        {
+                            currentStatus = update.StatusMessage;
+                        }
+                    });
 
                 while (!pollingTask.IsCompleted)
                 {
-                    ctx.Status(BuildPollingStatus(currentStatus, GetSecondsRemaining(expiresAt)));
+                    ctx.Status(BuildPollingStatus(GetCurrentStatus(), GetSecondsRemaining(expiresAt)));
                     await Task.WhenAny(
                         pollingTask,
                         Task.Delay(PollingStatusRefreshMilliseconds));
@@ -113,6 +120,14 @@ public class LoginCommand
 
                 return await pollingTask;
             });
+
+        string GetCurrentStatus()
+        {
+            lock (statusLock)
+            {
+                return currentStatus;
+            }
+        }
     }
 
     private static string BuildPollingStatus(string status, int secondsRemaining) =>
