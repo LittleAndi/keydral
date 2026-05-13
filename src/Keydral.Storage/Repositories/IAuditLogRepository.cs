@@ -46,7 +46,14 @@ public interface IAuditLogRepository : IRepository<AuditLog>
     /// Get filtered and paginated audit logs.
     /// </summary>
     Task<(IEnumerable<AuditLog> logs, int totalCount)> GetAuditLogsFilteredAsync(
-        string? actor, string? action, string? resourceId, string? result,
+        string? query,
+        string? actor,
+        string? action,
+        string? resourceType,
+        string? resourceId,
+        string? result,
+        DateTime? fromDate,
+        DateTime? toDate,
         int pageNumber, int pageSize, CancellationToken cancellationToken = default);
 
     /// <summary>

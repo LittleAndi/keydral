@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
+using System.Text.Json;
 
 namespace Keydral.API.Tests.Utilities;
 
@@ -23,18 +24,24 @@ internal static class TestJwtTokenFactory
     /// Creates a signed JWT token with the given <paramref name="userId"/> as the
     /// <c>sub</c> claim. The token is valid for 1 hour.
     /// </summary>
-    internal static string CreateToken(string userId)
+    internal static string CreateToken(string userId, params string[] roles)
     {
         var credentials = new SigningCredentials(SigningKey, SecurityAlgorithms.HmacSha256);
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, userId),
+            new("preferred_username", userId),
+        };
+
+        if (roles.Length > 0)
+        {
+            claims.Add(new Claim("realm_access", JsonSerializer.Serialize(new { roles })));
+        }
 
         var token = new JwtSecurityToken(
             issuer: "keydral-test",
             audience: "keydral-api",
-            claims:
-            [
-                new Claim(JwtRegisteredClaimNames.Sub, userId),
-                new Claim("preferred_username", userId),
-            ],
+            claims: claims,
             expires: DateTime.UtcNow.AddHours(1),
             signingCredentials: credentials);
 

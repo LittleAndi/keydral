@@ -37,6 +37,84 @@ public class SecretRepository : Repository<Secret>, ISecretRepository
     }
 
     /// <summary>
+    /// Get non-deleted secrets matching advanced search filters.
+    /// </summary>
+    public async Task<IEnumerable<Secret>> GetSecretsFilteredAsync(
+        string? query,
+        string? namePattern,
+        IReadOnlyCollection<string>? tags,
+        DateTime? createdAfter,
+        DateTime? createdBefore,
+        DateTime? updatedAfter,
+        DateTime? updatedBefore,
+        string? createdBy,
+        CancellationToken cancellationToken = default)
+    {
+        var secretQuery = Context.Secrets
+            .AsNoTracking()
+            .Where(secret => !secret.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var term in terms)
+            {
+                var searchPattern = BuildContainsPattern(term);
+                secretQuery = secretQuery.Where(secret =>
+                    EF.Functions.ILike(secret.Name, searchPattern)
+                    || (secret.Description != null && EF.Functions.ILike(secret.Description, searchPattern))
+                    || (secret.Tags != null && EF.Functions.ILike(secret.Tags, searchPattern)));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(namePattern))
+        {
+            secretQuery = secretQuery.Where(secret => EF.Functions.ILike(secret.Name, BuildWildcardLikePattern(namePattern)));
+        }
+
+        if (tags is { Count: > 0 })
+        {
+            foreach (var tag in tags.Where(tag => !string.IsNullOrWhiteSpace(tag)))
+            {
+                var exactTagPattern = $"%,{EscapeLikeFragment(tag.Trim())},%";
+                secretQuery = secretQuery.Where(secret =>
+                    secret.Tags != null
+                    && EF.Functions.ILike("," + secret.Tags.Replace(" ", string.Empty) + ",", exactTagPattern));
+            }
+        }
+
+        if (createdAfter.HasValue)
+        {
+            secretQuery = secretQuery.Where(secret => secret.CreatedAt >= createdAfter.Value);
+        }
+
+        if (createdBefore.HasValue)
+        {
+            secretQuery = secretQuery.Where(secret => secret.CreatedAt <= createdBefore.Value);
+        }
+
+        if (updatedAfter.HasValue)
+        {
+            secretQuery = secretQuery.Where(secret => secret.UpdatedAt >= updatedAfter.Value);
+        }
+
+        if (updatedBefore.HasValue)
+        {
+            secretQuery = secretQuery.Where(secret => secret.UpdatedAt <= updatedBefore.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(createdBy))
+        {
+            secretQuery = secretQuery.Where(secret =>
+                secret.CreatedBy != null && EF.Functions.ILike(secret.CreatedBy, BuildContainsPattern(createdBy)));
+        }
+
+        return await secretQuery
+            .OrderByDescending(secret => secret.UpdatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Get secrets matching a path pattern (with wildcard support).
     /// Supports patterns like "/team-a/*", "/team-a/db-*", "/admin/**".
     /// </summary>
@@ -125,5 +203,20 @@ public class SecretRepository : Repository<Secret>, ISecretRepository
                      (s.UpdatedAt >= from && s.UpdatedAt <= to)))
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync(cancellationToken);
+    }
+
+    private static string BuildContainsPattern(string value) => $"%{EscapeLikeFragment(value.Trim())}%";
+
+    private static string BuildWildcardLikePattern(string value)
+    {
+        return EscapeLikeFragment(value.Trim()).Replace("*", "%");
+    }
+
+    private static string EscapeLikeFragment(string value)
+    {
+        return value
+            .Replace(@"\", @"\\", StringComparison.Ordinal)
+            .Replace("%", @"\%", StringComparison.Ordinal)
+            .Replace("_", @"\_", StringComparison.Ordinal);
     }
 }

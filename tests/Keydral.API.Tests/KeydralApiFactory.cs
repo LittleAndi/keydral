@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication;
 using Moq;
 using Keydral.Storage;
 using Keydral.Storage.Repositories;
@@ -9,8 +10,16 @@ using Keydral.Encryption;
 using Keydral.Encryption.Extensions;
 using Keydral.Encryption.Configuration;
 using Keydral.API.Tests.Utilities;
-using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.IdentityModel.Tokens;
+using Keydral.Core.Authorization;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Keydral.Core.Authentication;
 
 namespace Keydral.API.Tests;
 
@@ -23,11 +32,19 @@ public class KeydralApiFactory : WebApplicationFactory<Program>
     public Mock<ISecretRepository> MockSecretRepository { get; } = new();
     public Mock<IPolicyRepository> MockPolicyRepository { get; } = new();
     public Mock<IAuditLogRepository> MockAuditLogRepository { get; } = new();
+    public Mock<IRbacPolicyEngine> MockPolicyEngine { get; } = new();
 
     public KeydralApiFactory()
     {
         // Set environment before host creation so correct appsettings file is loaded
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+        MockPolicyEngine
+            .Setup(engine => engine.CanPerformAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -36,6 +53,19 @@ public class KeydralApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
+            services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+                options.DefaultScheme = TestAuthenticationHandler.SchemeName;
+            }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, _ => { });
+            services.PostConfigure<AuthenticationOptions>(options =>
+            {
+                options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+                options.DefaultScheme = TestAuthenticationHandler.SchemeName;
+            });
+
             // Remove real database context (not needed for health endpoint test)
             var dbContextDescriptor = services.FirstOrDefault(
                 d => d.ServiceType == typeof(ApplicationDbContext));
@@ -48,7 +78,16 @@ public class KeydralApiFactory : WebApplicationFactory<Program>
             services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
                 options.RequireHttpsMetadata = false;
-                options.Authority = "http://localhost:8080/realms/keydral";
+                options.Authority = null;
+                options.MetadataAddress = null!;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = TestJwtTokenFactory.SigningKey,
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+                    ValidateLifetime = false,
+                };
             });
 
             // Replace real encryption service with test encryption using a test master key
@@ -93,19 +132,32 @@ public class KeydralApiFactory : WebApplicationFactory<Program>
             if (auditRepoDescriptor != null)
                 services.Remove(auditRepoDescriptor);
 
+            var policyEngineDescriptor = services.FirstOrDefault(
+                d => d.ServiceType == typeof(IRbacPolicyEngine));
+            if (policyEngineDescriptor != null)
+                services.Remove(policyEngineDescriptor);
+
             services.AddScoped(_ => MockSecretRepository.Object);
             services.AddScoped(_ => MockPolicyRepository.Object);
             services.AddScoped(_ => MockAuditLogRepository.Object);
+            services.AddScoped(_ => MockPolicyEngine.Object);
+            services.AddSingleton<IStartupFilter, TestUserContextStartupFilter>();
         });
     }
 
     /// <summary>
-    /// Create an HTTP client with Bearer token for authenticated requests.
+    /// Create an HTTP client authenticated through test-only headers consumed by the
+    /// test auth handler and startup filter.
     /// </summary>
-    public HttpClient CreateAuthenticatedClient(string token = "test-token")
+    public HttpClient CreateAuthenticatedClient(string userId = "test-user", params string[] roles)
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+        if (roles.Length > 0)
+        {
+            client.DefaultRequestHeaders.Add("X-Test-Roles", string.Join(',', roles));
+        }
+
         return client;
     }
 
@@ -117,5 +169,81 @@ public class KeydralApiFactory : WebApplicationFactory<Program>
         MockSecretRepository.Reset();
         MockPolicyRepository.Reset();
         MockAuditLogRepository.Reset();
+        MockPolicyEngine.Reset();
+        MockPolicyEngine
+            .Setup(engine => engine.CanPerformAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+    }
+}
+
+internal sealed class TestUserContextStartupFilter : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
+    {
+        return app =>
+        {
+            app.Use(async (context, middlewareNext) =>
+            {
+                if (context.Request.Headers.TryGetValue("X-Test-User", out var userIdValues))
+                {
+                    var roles = context.Request.Headers.TryGetValue("X-Test-Roles", out var roleValues)
+                        ? roleValues.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList()
+                        : [];
+
+                    context.Items["UserContext"] = new UserContext
+                    {
+                        Id = userIdValues.ToString(),
+                        Username = userIdValues.ToString(),
+                        RealmRoles = roles
+                    };
+                }
+
+                await middlewareNext();
+            });
+
+            next(app);
+        };
+    }
+}
+
+internal sealed class TestAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+{
+    public const string SchemeName = "Test";
+
+    public TestAuthenticationHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder)
+        : base(options, logger, encoder)
+    {
+    }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        if (!Request.Headers.TryGetValue("X-Test-User", out var userIdValues))
+        {
+            return Task.FromResult(AuthenticateResult.NoResult());
+        }
+
+        var userId = userIdValues.ToString();
+        var roles = Request.Headers.TryGetValue("X-Test-Roles", out var roleValues)
+            ? roleValues.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            : [];
+
+        var claims = new List<Claim>
+        {
+            new("sub", userId),
+            new("preferred_username", userId),
+            new("realm_access", JsonSerializer.Serialize(new { roles }))
+        };
+
+        var identity = new ClaimsIdentity(claims, SchemeName);
+        var principal = new ClaimsPrincipal(identity);
+        var ticket = new AuthenticationTicket(principal, SchemeName);
+        return Task.FromResult(AuthenticateResult.Success(ticket));
     }
 }

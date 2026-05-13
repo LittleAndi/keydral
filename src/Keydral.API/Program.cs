@@ -150,6 +150,7 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 app.MapSecretEndpoints();
 app.MapPolicyEndpoints();
 app.MapAuditLogEndpoints();
+app.MapSearchEndpoints();
 
 await (app.RunAsync() ?? Task.CompletedTask);
 

@@ -18,6 +18,21 @@ public interface ISecretRepository : IRepository<Secret>
     Task<IEnumerable<Secret>> GetActiveSecretsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get non-deleted secrets matching advanced search filters.
+    /// Filtering is applied in the database before results are materialized.
+    /// </summary>
+    Task<IEnumerable<Secret>> GetSecretsFilteredAsync(
+        string? query,
+        string? namePattern,
+        IReadOnlyCollection<string>? tags,
+        DateTime? createdAfter,
+        DateTime? createdBefore,
+        DateTime? updatedAfter,
+        DateTime? updatedBefore,
+        string? createdBy,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get secrets matching a path pattern (with wildcard support).
     /// </summary>
     Task<IEnumerable<Secret>> GetSecretsByPathPatternAsync(string pattern, CancellationToken cancellationToken = default);
